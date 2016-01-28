@@ -1,0 +1,34 @@
+### Optimap - tool for optical mapping
+
+
+#### Installation
+
+### Requirements
+
+gcc 4.7 or newer
+
+### Build
+
+```
+make
+```
+
+#### Usage
+
+Command-line usage
+
+Run:
+
+```
+./omap -r data/ref.map -o data/experiment.maps -m mapping.out -k 10
+```
+  
+to map maps in experiment.maps to ref.map and obtain 10 highest scoring alignments.
+
+Run
+
+```
+./omap -h
+```
+
+to get the description of all command-line parameters.
