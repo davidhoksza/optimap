@@ -7,6 +7,13 @@
 
 gcc 4.7 or newer
 
+### Download optimap
+
+```
+git clone https://github.com/davidhoksza/optimap.git
+```
+
+
 ### Build
 
 ```
