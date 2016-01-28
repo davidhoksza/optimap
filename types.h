@@ -50,7 +50,7 @@ struct Mapping {
 	double		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
 	std::string chromosome; 
 
-	Mapping(int _score, OmRmPath _alignment) : score(_score), alignment(_alignment) {};
+	Mapping(int _score, OmRmPath _alignment) : alignment(_alignment), score(_score) {};
 	void ComputeQuality() {
 		quality = score;
 	}
