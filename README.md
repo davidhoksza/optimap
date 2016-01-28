@@ -30,7 +30,7 @@ Run:
 ./omap -r data/ref.map -o data/experiment.maps -m mapping.out -k 10
 ```
   
-to map maps in **experiment.maps** to **ref.map**, obtain 10 highest scoring alignments and store the results in **mapping.out**.
+to map maps in **experiment.maps** to *ref.map*, obtain 10 highest scoring alignments and store the results in *mapping.out*.
 
 Run
 
