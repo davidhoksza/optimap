@@ -11,13 +11,13 @@ OBJECTS=$(SOURCES:.cpp=.o)
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(OBJECTS)
+	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -o $(TARGET) $(OBJECTS)
 
 main.o: main.cpp constants.h indexing.h types.h logger.h string_functions.h
-	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c main.cpp
+	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -c main.cpp
 
 indexing.o: constants.h types.h
-	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c indexing.cpp
+	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -c indexing.cpp
 
 clean:
 	$(RM) $(OBJECTS)
