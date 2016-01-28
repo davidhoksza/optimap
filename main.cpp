@@ -352,7 +352,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 		mutexOM.unlock();
 
 		Mappings mappings;
-		for each (auto refMap in refMaps)
+		for (auto refMap : refMaps)
 		{
 			//resultSet[ixOM] = do_mapping(optMap[ixOM].reads, refMap.second, candidates);
 			Mappings aux_mapping = do_mapping(optMap[ixOM].reads, refMap.second, candidates);
@@ -451,7 +451,7 @@ void Parse(vector<Fragment> &optMap, RefMaps &refMaps)
 	refMaps = parse_ref_map(params.rmFileName); //vector<RMRead> refMap = parse_ref_map("../ref.map"/*, 100000*/);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::STDOUT, ss);
 	int sum = 0;
-	for each(auto m in refMaps) sum += m.second.size();
+	for (auto m : refMaps) sum += m.second.size();
 	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::STDOUT, ss);
 	ss << "opt. map length: " << optMap.size() << "\n"; logger.Log(Logger::STDOUT, ss);
 	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::STDOUT, ss);
