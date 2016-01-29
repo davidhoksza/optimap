@@ -1,6 +1,6 @@
 CXX = g++
 RM = rm -f
-CFLAGS = -pthread -std=c++11 -I./ -m64 -Wall -g -Wno-sign-compare
+CFLAGS = -pthread -std=c++0x -I./ -m64 -Wall -g -Wno-sign-compare
 DEBUGFLAGS   = -O0 -D _DEBUG
 RELEASEFLAGS = -O2 -D NDEBUG
 TARGET  = omap
