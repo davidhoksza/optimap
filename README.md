@@ -28,10 +28,10 @@ Command-line usage
 Run:
 
 ```
-./omap -r data/ref.map -o data/experiment.maps -m mapping.out -k 10 -b 0 -e 3
+./omap -r data/ref.map -o data/experiment.maps -k 10 -b 0 -e 3
 ```
   
-to map first 4 (parameters *b* and *e* - optional) maps in *experiment.maps* to *ref.map*, obtain 10 highest scoring alignments and store the results in *mapping.out*.
+to map first 4 (parameters *b* and *e* - optional) maps in *experiment.maps* to *ref.map*, obtain 10 highest scoring alignments and return them on the standard output.
 
 Run
 
