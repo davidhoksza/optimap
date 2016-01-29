@@ -657,6 +657,7 @@ int main(int argc, char** argv)
 	//InitializeIndex(index, refMap);	
 	Mappings *omMatches = AlignOpticalMaps(optMap, refMaps, index);
 	SerializeMappings(omMatches, optMap, refMaps);
+	delete[] omMatches;
 
 	return EXIT_SUCCESS;
 }
