@@ -337,6 +337,11 @@ void verify_candidates(Fragment &optMap, vector<int> &refMap, vector<IndexRecord
 
 }
 
+bool aux_sort_map_segment(Mapping & a, Mapping & b)
+{
+	return a.score < b.score;
+}
+
 void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, Mappings* resultSet, map<int, vector<IndexRecord> > &index)
 {
 	for (int ixOM = from; ixOM <= to; ++ixOM)
@@ -366,7 +371,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 		}
 
 		//keep top params.topK mappings
-		sort(mappings.begin(), mappings.end(), [](Mapping & a, Mapping & b) -> bool	{return a.score < b.score; });
+		sort(mappings.begin(), mappings.end(), aux_sort_map_segment);
 		mappings.erase(mappings.begin() + params.topK, mappings.end());
 		resultSet[ixOM] = mappings;
 		
