@@ -231,8 +231,9 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 	
 	//finally, we find the index with min value in the last row and extract the diagonal
 	//we start at index height since we are interested only in diagonals of length at least "height"
-	for (auto match : minPositions)
+	for (int ix = 0; ix < minPositions.size(); ix++)
 	{
+		pair<int, int> match = minPositions[ix];
 		OmRmPath diagonal;
 		//for (int ixDiagonal = height - 2; ixDiagonal >= 0; --ixDiagonal) diagonal.push_back(make_pair<int, int>(height - 2 - ixDiagonal, pos - 1 - ixDiagonal));
 		
@@ -352,13 +353,14 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 		mutexOM.unlock();
 
 		Mappings mappings;
-		for (auto refMap : refMaps)
+		for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
 		{
 			//resultSet[ixOM] = do_mapping(optMap[ixOM].reads, refMap.second, candidates);
-			Mappings aux_mapping = do_mapping(optMap[ixOM].reads, refMap.second, candidates);
-			for (auto it = aux_mapping.begin(); it != aux_mapping.end(); ++it){
-				it->chromosome = refMap.first;
-				it->ComputeQuality();
+			Mappings aux_mapping = do_mapping(optMap[ixOM].reads, refMap->second, candidates);
+			for (Mappings::iterator itAux = aux_mapping.begin(); itAux != aux_mapping.end(); ++itAux)
+			{
+				itAux->chromosome = refMap->first;
+				itAux->ComputeQuality();
 			}
 			mappings.insert(mappings.end(), aux_mapping.begin(), aux_mapping.end());
 		}
@@ -399,8 +401,8 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
 		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each optical map", false, 1, "int");
 		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
-		TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 1000, "int");
-		TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 1000, "int");
+		TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
+		TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
 		TCLAP::ValueArg<int> dpwindowsize("", "dpwindowsize", "Size of the dynamic programming window, i.e. how many restriction sites can be missed", false, 2, "int");
 		
 		cmd.add(omFileNameArg);
@@ -451,7 +453,7 @@ void Parse(vector<Fragment> &optMap, RefMaps &refMaps)
 	refMaps = parse_ref_map(params.rmFileName); //vector<RMRead> refMap = parse_ref_map("../ref.map"/*, 100000*/);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::STDOUT, ss);
 	int sum = 0;
-	for (auto m : refMaps) sum += m.second.size();
+	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++) sum += it->second.size();
 	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::STDOUT, ss);
 	ss << "opt. map length: " << optMap.size() << "\n"; logger.Log(Logger::STDOUT, ss);
 	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::STDOUT, ss);
