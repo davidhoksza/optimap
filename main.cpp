@@ -564,6 +564,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
 			std::ostringstream ssAln, ssAlnDetail; 
 			ssAln << "ALN: ";
 			ssAlnDetail << "ALN-DETAIL: ";
@@ -571,8 +572,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			for (int ixAlignment = 1; ixAlignment < mappings[ixMappings].alignment.size(); ixAlignment++)
 			{
 				if (ixAlignment > 1){
-					ssAln << "-";
-					ssAlnDetail << "-";
+					ssAln << " ";
+					ssAlnDetail << " ";
 				}
 				int ixOMAux, ixRMAux;
 				ostringstream ssRmPos, ssRmLengths, ssOmIxs, ssOmLengths;
@@ -590,7 +591,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 					int length = optMap[ixOM].reads[ixOMAux - 1];
 					sumOM += length;
 					ssOmIxs << " " << ixOMAux - 1;
-					ssOmLengths << " " << length;
+					if (cntOM > 0) ssOmLengths << ",";
+					ssOmLengths << length;
 					ixOMAux++;
 					cntOM++;
 				}
@@ -600,7 +602,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 					int length = refMaps[chr][ixRMAux - 1].length;
 					sumRM += length;
 					ssRmPos << " " << refMaps[chr][ixRMAux-1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
-					ssRmLengths << " " << length;
+					if (cntRM > 0) ssRmLengths << "," ;
+					ssRmLengths << length;
 					ixRMAux++;
 					cntRM++;
 				}
