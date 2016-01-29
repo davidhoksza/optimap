@@ -541,11 +541,14 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			//int posOmFirst = optMap[ixOM].reads[mappings[ixMappings].alignment[0].first];
 			string posOmFirst = "0";
 			string posOmChrom = "";			
-			string posRmFirst = std::to_string(refMaps[chr][mappings[ixMappings].alignment[0].second].start);
+			string posRmFirst = std::to_string(refMaps[chr][mappings[ixMappings].alignment[0].second].start);	//the DP matrix (and hence indeces) in the alignment is +1 shifted (init row and col)
+																												//with respect to the real sequences. But beginning of the alignment starts
+																												//-1 position before the "real" mapping starts -> no -1 shift needed
 			string posRmChrom = refMaps[chr][mappings[ixMappings].alignment[0].second].chromosome;
 			//int posOmLast = optMap[ixOM].reads[(mappings[ixMappings].alignment.end() - 1)->first]; 
 			string posOmLast = std::to_string(optMap[0].length);
-			string posRmLast = std::to_string(refMaps[chr][(mappings[ixMappings].alignment.end() - 1)->second].start);
+			auto al = mappings[ixMappings].alignment;
+			string posRmLast = std::to_string(refMaps[chr][(mappings[ixMappings].alignment.end() - 1)->second - 1].start + refMaps[chr][(mappings[ixMappings].alignment.end() - 1)->second - 1].length);
 			if (optMap[ixOM].debugInfo.size() > 0)
 			{
 				posOmChrom = optMap[ixOM].debugInfo[0];
@@ -561,12 +564,16 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
-			std::ostringstream ssAln; 
+			std::ostringstream ssAln, ssAlnDetail; 
 			ssAln << "ALN: ";
+			ssAlnDetail << "ALN-DETAIL: ";
 
 			for (int ixAlignment = 1; ixAlignment < mappings[ixMappings].alignment.size(); ixAlignment++)
 			{
-				if (ixAlignment > 1) ssAln << ";";
+				if (ixAlignment > 1){
+					ssAln << "-";
+					ssAlnDetail << "-";
+				}
 				int ixOMAux, ixRMAux;
 				ostringstream ssRmPos, ssRmLengths, ssOmIxs, ssOmLengths;
 
@@ -592,7 +599,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				{
 					int length = refMaps[chr][ixRMAux - 1].length;
 					sumRM += length;
-					ssRmPos << " " << refMaps[chr][ixRMAux].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
+					ssRmPos << " " << refMaps[chr][ixRMAux-1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
 					ssRmLengths << " " << length;
 					ixRMAux++;
 					cntRM++;
@@ -602,10 +609,11 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 
 				ss << ixOMAux + 1 << " - " << ixRMAux + 1 << " (" << sumOM << " - " << sumRM << ") "; logger.Log(Logger::LOGFILE, ss);
 				ssAln << sumRM - sumOM << "," << cntRM << ":" << cntOM << "," << sumRM;// << sumOM << " ";
+				ssAlnDetail << strings::trim(ssRmLengths.str()) << ":" << strings::trim(ssOmLengths.str());
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
-			ssAln << endl;
-			logger.Log(Logger::RESFILE, ssAln);
+			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
+			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
 
 			//For debugging purposes we want to check whether the OM comes from the same place in RM (debugInfo in OM = position in RM)	
 			//Beggining of the OM segement is stored in debugInfo[2] and end in the last element of debugInfo, matching segements in refmap is stored in matches.matches
