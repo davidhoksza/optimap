@@ -28,6 +28,8 @@
 #include <sstream>
 #include <algorithm>
 
+#include <htslib/hts.h>
+
 using namespace std;
 
 mutex mutexOM;
@@ -43,7 +45,7 @@ Params params;
 RefMaps parse_ref_map(string fileName)
 {
 	RefMaps refMaps;
-	
+
 
 	ifstream ifs(fileName);
 
@@ -53,18 +55,39 @@ RefMaps parse_ref_map(string fileName)
 		exit(EXIT_FAILURE);
 	}
 
+	kstring_t str = { 0, 0, 0 };
+	htsFile* fh = hts_open(fileName.c_str(), "r");
 	string line;
-	for (string line; getline(ifs, line);) {
+	while (hts_getline(fh, 2, &str) >= 0)
+	{
+		line = string(str.s);
+
 		vector<string> strs = strings::split(line, "\t");
 
 		RMRead auxRMRead;
-		auxRMRead.chromosome = strings::trim(strs[0]);		
+		auxRMRead.chromosome = strings::trim(strs[0]);
 		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
 		auxRMRead.start = stof(strs[1]);
 		auxRMRead.length = stof(strs[3]) * 1000;
 		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
 		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
+
 	}
+	hts_close(fh);
+	free(str.s);
+
+	//	string line;
+	//	for (string line; getline(ifs, line);) {
+	//		vector<string> strs = strings::split(line, "\t");
+	//
+	//		RMRead auxRMRead;
+	//		auxRMRead.chromosome = strings::trim(strs[0]);		
+	//		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
+	//		auxRMRead.start = stof(strs[1]);
+	//		auxRMRead.length = stof(strs[3]) * 1000;
+	//		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
+	//		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
+	//	}
 
 	return refMaps;
 }
@@ -84,8 +107,14 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 	string line;
 	char buffer[20];
 	vector<string> cleavageSites;
-	for (std::string line; getline(ifs, line);) 
-	{		
+	kstring_t str = { 0, 0, 0 };
+	htsFile* fh = hts_open(fileName.c_str(), "r");
+	//	for (std::string line; getline(ifs, line);) 
+	while (hts_getline(fh, 2, &str) >= 0)
+	{
+		line = string(str.s);
+		cout << line << endl;
+
 		if (line.find_first_of("debug") != string::npos)
 		{
 			stringstream ss(line); // Insert the string into a stream
@@ -98,7 +127,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 			Fragment f;
 
 			int pos = -1;
-			
+
 			for (string::const_iterator it = line.begin(), end = line.end(); it != end; ++it)
 			{
 				pos++;
@@ -116,7 +145,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 			}
 			if (pos >= 0)
 			{
-				buffer[pos+1] = 0;
+				buffer[pos + 1] = 0;
 				int aux = 1000 * atof(buffer);
 				f.reads.push_back(aux);
 				f.length += aux;
@@ -132,8 +161,11 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 			}
 			optMap.push_back(f);
 			if (optMap.size() >= topN) break;
-		}		
+		}
 	}
+
+	hts_close(fh);
+	free(str.s);
 
 	return optMap;
 }
@@ -150,10 +182,10 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 	//that the resulting mapping will capture the whole fragemnt
 	//we don't use max values because that might cause overflow
 	//since we add to these values
-	for (int ixRow = 1; ixRow <= fragment.size(); matrix[ixRow++][ir.start_position-1].value = numeric_limits<int>::max() / 1000);
+	for (int ixRow = 1; ixRow <= fragment.size(); matrix[ixRow++][ir.start_position - 1].value = numeric_limits<int>::max() / 1000);
 
 	int minMappingValue = numeric_limits<int>::max();
-	
+
 	for (int ixRow = 1; ixRow < fragment.size() + 1; ++ixRow)
 	{
 		bool isLastRow = ixRow == fragment.size() ? true : false;
@@ -162,25 +194,25 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 		//for example the first column does not make sense since that would mean the whole OM fragment was
 		//aligned with one read in the reference map
 		//int ixColResultFrom = ceil(fragment.size() / (float) DP_WINDOW_SIZE);
-		
+
 		for (int ixCol = ir.start_position; ixCol <= ir.end_position; ++ixCol)
 		{
 			//matrix[ixRow][ixCol].value = matrix[ixRow - 1][ixCol - 1].value + abs(fragment[ixRow - 1] - reference[ixCol - 1]);
 			DpMatrixCell minCell;
 			minCell.value = numeric_limits<int>::max();
-			
+
 			int rowValue = 0;
 			for (int ixWindowRow = 1; ixWindowRow <= params.mapDpWindowSize; ++ixWindowRow)
 			{
 				if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
-				rowValue += fragment[ixRow - ixWindowRow];				
+				rowValue += fragment[ixRow - ixWindowRow];
 				int colValue = 0;
 				for (int ixWindowCol = 1; ixWindowCol <= params.mapDpWindowSize; ++ixWindowCol)
 				{
-					if (ixCol - ixWindowCol < ir.start_position-1) break; //should I touch position out of the candidate window
+					if (ixCol - ixWindowCol < ir.start_position - 1) break; //should I touch position out of the candidate window
 					colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
 					int score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + abs(rowValue - colValue);
-					
+
 					//penalty computation
 					score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
 
@@ -206,18 +238,18 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord ir = IndexRecord())
 {
 	Mappings mappings;
-	
+
 	vector<pair<int, int>> minPositions; //top K min values and positions in increasing order
 	if (ir.start_position == -1) ir.start_position = 1;
 	else ir.start_position++;
-	if (ir.end_position == -1) ir.end_position = width-1;
+	if (ir.end_position == -1) ir.end_position = width - 1;
 	else ir.end_position++;
 
 	for (int ixM = ir.start_position; ixM <= ir.end_position; ++ixM)
 	{
 		int alignmentScore = matrix[height - 1][ixM].value;
 		if (minPositions.size() == 0) minPositions.push_back(make_pair(alignmentScore, ixM));
-		else if (minPositions.size() < params.topK || (minPositions.end() - 1)->first > alignmentScore) 
+		else if (minPositions.size() < params.topK || (minPositions.end() - 1)->first > alignmentScore)
 		{
 			//find position in the sorted vector
 			int pos = 0;
@@ -228,7 +260,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 			if (minPositions.size() > params.topK) minPositions.erase(minPositions.end() - 1);
 		}
 	}
-	
+
 	//finally, we find the index with min value in the last row and extract the diagonal
 	//we start at index height since we are interested only in diagonals of length at least "height"
 	for (int ix = 0; ix < minPositions.size(); ix++)
@@ -236,7 +268,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 		pair<int, int> match = minPositions[ix];
 		OmRmPath diagonal;
 		//for (int ixDiagonal = height - 2; ixDiagonal >= 0; --ixDiagonal) diagonal.push_back(make_pair<int, int>(height - 2 - ixDiagonal, pos - 1 - ixDiagonal));
-		
+
 		int ixRow = height - 1, ixCol = match.second;
 		while (ixRow >= 1 && ixCol >= ir.start_position)
 		{
@@ -245,10 +277,10 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 			int ixColAux = matrix[ixRow][ixCol].sourceColumn;
 			ixRow = ixRowAux;
 			ixCol = ixColAux;
-		}		
+		}
 		//Finally, we add the last position which is not part of the alignment, but helps to identify
 		//the boundaries. This is used when the alignment does not start at the beginning of the reference map (indexing)
-		diagonal.push_back(make_pair(ixRow, ixCol));  
+		diagonal.push_back(make_pair(ixRow, ixCol));
 		//Since the backtracking started from the end of the alignment, we reverse the result
 		reverse(diagonal.begin(), diagonal.end());
 		mappings.push_back(Mapping(match.first, diagonal));
@@ -259,7 +291,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 
 Mappings do_mapping(vector<int> &fragment, std::vector<RMRead> &refMap, vector<IndexRecord> &candidates)
 {
-	DpMatrixCell **dpMatrix = new DpMatrixCell*[fragment.size() + 1];	
+	DpMatrixCell **dpMatrix = new DpMatrixCell*[fragment.size() + 1];
 	for (int ixDPM = 0; ixDPM < fragment.size() + 1; ++ixDPM) dpMatrix[ixDPM] = new DpMatrixCell[refMap.size() + 1];
 
 	Mappings matchSequences;
@@ -311,7 +343,7 @@ Mappings do_mapping(vector<int> &fragment, std::vector<RMRead> &refMap, vector<I
 		//	matchSequences.matches.insert(matchSequences.matches.end(), aux.matches.begin(), aux.matches.end());
 		//}
 		//cout << "mapped" << endl;
-	}	
+	}
 
 	for (int i = 0; i < fragment.size() + 1; ++i) delete[] dpMatrix[i];
 	delete[] dpMatrix;
@@ -321,10 +353,10 @@ Mappings do_mapping(vector<int> &fragment, std::vector<RMRead> &refMap, vector<I
 
 void verify_candidates(Fragment &optMap, vector<int> &refMap, vector<IndexRecord> candidates)
 {
-	int omSize = optMap.length;	
+	int omSize = optMap.length;
 	for (int iC = 0; iC < candidates.size(); iC++)
-	{		
-		ss << "Verifying candidate (start: " << candidates[iC].start_position << ", end: " << candidates[iC].end_position 
+	{
+		ss << "Verifying candidate (start: " << candidates[iC].start_position << ", end: " << candidates[iC].end_position
 			<< ", length:" << candidates[iC].length << ")" << endl; logger.Log(Logger::STDOUT, ss);
 
 		int rmSize = 0;
@@ -348,7 +380,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 		{
 			threshold++;
 			candidates = index_get_candidates(index, optMap[ixOM], threshold);
-		} 
+		}
 		mutexOM.lock();
 		ss << "Thresold: " << threshold << ". Candidates: " << candidates.size() << endl; logger.Log(Logger::LOGFILE, ss);
 		mutexOM.unlock();
@@ -377,14 +409,14 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 		//sort(mappings.begin(), mappings.end(), [](Mapping & a, Mapping & b) -> bool	{return a.score < b.score; });
 		mappings.erase(mappings.begin() + params.topK, mappings.end());
 		resultSet[ixOM] = mappings;
-		
+
 		//verify_candidates(optMap[ixOM], refMap, candidates);		
 		scoresCalculations.push_back(scoresComputed); scoresComputed = 0;
 
 		mutexOM.lock();
 		omProcessed++;
 		ss << omProcessed << " "; logger.Log(Logger::STDOUT, ss);
-		mutexOM.unlock();		
+		mutexOM.unlock();
 	}
 }
 
@@ -412,7 +444,7 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
 		TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
 		TCLAP::ValueArg<int> dpwindowsize("", "dpwindowsize", "Size of the dynamic programming window, i.e. how many restriction sites can be missed", false, 2, "int");
-		
+
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
 		cmd.add(outFileNameArg);
@@ -425,7 +457,7 @@ void ParseCmdLine(int argc, char** argv)
 		cmd.add(omMissed);
 		cmd.add(rmMissed);
 		cmd.add(dpwindowsize);
-		
+
 		cmd.parse(argc, argv);
 
 		params.omFileName = omFileNameArg.getValue();
@@ -544,10 +576,10 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			//ss << "# " << ixMappings + 1 << ". mapping with score " << mappings[ixMappings].score << " and real length difference "  << abs(omLength - rmLength) << endl; logger.Log(Logger::RESFILE, ss);
 			//int posOmFirst = optMap[ixOM].reads[mappings[ixMappings].alignment[0].first];
 			string posOmFirst = "0";
-			string posOmChrom = "";			
+			string posOmChrom = "";
 			string posRmFirst = std::to_string(refMaps[chr][mappings[ixMappings].alignment[0].second].start);	//the DP matrix (and hence indeces) in the alignment is +1 shifted (init row and col)
-																												//with respect to the real sequences. But beginning of the alignment starts
-																												//-1 position before the "real" mapping starts -> no -1 shift needed
+			//with respect to the real sequences. But beginning of the alignment starts
+			//-1 position before the "real" mapping starts -> no -1 shift needed
 			string posRmChrom = refMaps[chr][mappings[ixMappings].alignment[0].second].chromosome;
 			//int posOmLast = optMap[ixOM].reads[(mappings[ixMappings].alignment.end() - 1)->first]; 
 			string posOmLast = std::to_string(optMap[0].length);
@@ -556,20 +588,20 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			if (optMap[ixOM].debugInfo.size() > 0)
 			{
 				posOmChrom = optMap[ixOM].debugInfo[0];
-				posOmFirst =  optMap[ixOM].debugInfo[1];
-				posOmLast = *(optMap[ixOM].debugInfo.end()-1);
+				posOmFirst = optMap[ixOM].debugInfo[1];
+				posOmLast = *(optMap[ixOM].debugInfo.end() - 1);
 				int ixColon = posOmLast.find(':');
-				if (ixColon != string::npos) posOmLast = posOmLast.substr(ixColon+1);
+				if (ixColon != string::npos) posOmLast = posOmLast.substr(ixColon + 1);
 			}
 
-			/*ss << "# " << ixMappings + 1 << "\tscore: " << mappings[ixMappings].score << "\tlength-diff: " << abs(omLength - rmLength) 
-				<< "\tmap: " << posOmChrom << ":" << posOmFirst << "-" << posOmLast << "->" << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);*/
-						
+			/*ss << "# " << ixMappings + 1 << "\tscore: " << mappings[ixMappings].score << "\tlength-diff: " << abs(omLength - rmLength)
+			<< "\tmap: " << posOmChrom << ":" << posOmFirst << "-" << posOmLast << "->" << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);*/
+
 			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
-			std::ostringstream ssAln, ssAlnDetail; 
+			std::ostringstream ssAln, ssAlnDetail;
 			ssAln << "ALN: ";
 			ssAlnDetail << "ALN_DETAIL: ";
 
@@ -585,7 +617,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				//get the previously matched pair + 1
 				ixOMAux = mappings[ixMappings].alignment[ixAlignment - 1].first + 1;
 				ixRMAux = mappings[ixMappings].alignment[ixAlignment - 1].second + 1;
-				
+
 				int sumOM = 0, sumRM = 0; //length between this and last matched position
 				vector<int> auxRmIxs, auxOmIxs; //indeces of the aligned regions in RM and OM
 
@@ -605,14 +637,14 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				{
 					int length = refMaps[chr][ixRMAux - 1].length;
 					sumRM += length;
-					ssRmPos << " " << refMaps[chr][ixRMAux-1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
-					if (cntRM > 0) ssRmLengths << "," ;
+					ssRmPos << " " << refMaps[chr][ixRMAux - 1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
+					if (cntRM > 0) ssRmLengths << ",";
 					ssRmLengths << length;
 					ixRMAux++;
 					cntRM++;
 				}
 				/*ss << "\t" << ixOM << ";" << strings::trim(ssOmIxs.str()) << ";" << strings::trim(ssRmPos.str()) << ";"
-					<< strings::trim(ssOmLengths.str()) << ";" << strings::trim(ssRmLengths.str()) << endl; logger.Log(Logger::RESFILE, ss);*/
+				<< strings::trim(ssOmLengths.str()) << ";" << strings::trim(ssRmLengths.str()) << endl; logger.Log(Logger::RESFILE, ss);*/
 
 				ss << ixOMAux + 1 << " - " << ixRMAux + 1 << " (" << sumOM << " - " << sumRM << ") "; logger.Log(Logger::LOGFILE, ss);
 				ssAln << sumRM - sumOM << "," << cntRM << ":" << cntOM << "," << sumRM;// << sumOM << " ";
@@ -656,7 +688,7 @@ int main(int argc, char** argv)
 	map<int, vector<IndexRecord> > index;
 
 	ParseCmdLine(argc, argv);
-	InitLogging();	
+	InitLogging();
 	Parse(optMap, refMaps);
 	//InitializeIndex(index, refMap);	
 	Mappings *omMatches = AlignOpticalMaps(optMap, refMaps, index);
