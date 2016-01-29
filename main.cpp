@@ -520,6 +520,10 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 
 	/*ss << "#om id;om indeces;rm positions;om lengths; rm lengths" << endl; logger.Log(Logger::RESFILE, ss);*/
 
+	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
+
 	int cntIncorrectlyMapped = 0;;
 	for (int ixOM = 0; ixOM < optMap.size(); ixOM++)
 	{
@@ -567,7 +571,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
 			std::ostringstream ssAln, ssAlnDetail; 
 			ssAln << "ALN: ";
-			ssAlnDetail << "ALN-DETAIL: ";
+			ssAlnDetail << "ALN_DETAIL: ";
 
 			for (int ixAlignment = 1; ixAlignment < mappings[ixMappings].alignment.size(); ixAlignment++)
 			{
