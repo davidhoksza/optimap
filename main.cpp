@@ -396,7 +396,7 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
 		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
 		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
-		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, -1, "int");
+		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
 		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each optical map", false, 1, "int");
 		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
 		TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 1000, "int");
