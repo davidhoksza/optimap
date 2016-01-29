@@ -113,7 +113,6 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 	while (hts_getline(fh, 2, &str) >= 0)
 	{
 		line = string(str.s);
-		cout << line << endl;
 
 		if (line.find_first_of("debug") != string::npos)
 		{
@@ -415,7 +414,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 
 		mutexOM.lock();
 		omProcessed++;
-		ss << omProcessed << " "; logger.Log(Logger::STDOUT, ss);
+		ss << omProcessed << " "; logger.Log(Logger::LOGFILE, ss);
 		mutexOM.unlock();
 	}
 }
@@ -485,34 +484,34 @@ void ParseCmdLine(int argc, char** argv)
 void Parse(vector<Fragment> &optMap, RefMaps &refMaps)
 {
 	ss << "======= PARSE - START =======" << endl;
-	logger.Log(Logger::STDOUT, ss);
+	logger.Log(Logger::LOGFILE, ss);
 	clock_t begin_time = clock();
 	//vector<Fragment> optMap = parse_opt_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<Fragment> optMap = parse_opt_map("../ref.map.split", 100);
 	optMap = parse_opt_map(params.omFileName);
 	refMaps = parse_ref_map(params.rmFileName); //vector<RMRead> refMap = parse_ref_map("../ref.map"/*, 100000*/);
-	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::STDOUT, ss);
+	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
 	int sum = 0;
 	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++) sum += it->second.size();
-	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::STDOUT, ss);
-	ss << "opt. map length: " << optMap.size() << "\n"; logger.Log(Logger::STDOUT, ss);
-	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::STDOUT, ss);
-	ss << "======= PARSE - END =======" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::LOGFILE, ss);
+	ss << "opt. map length: " << optMap.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
+	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::LOGFILE, ss);
+	ss << "======= PARSE - END =======" << endl; logger.Log(Logger::LOGFILE, ss);
 }
 
 void InitializeIndex(map<int, vector<IndexRecord> > &index, RefMaps &refMaps)
 {
-	ss << "======= INDEX INITIALIZATION - START =======" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "======= INDEX INITIALIZATION - START =======" << endl; logger.Log(Logger::LOGFILE, ss);
 	clock_t begin_time = clock();
 	index = init_index(refMaps);
-	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::STDOUT, ss);
-	ss << "======= INDEX INITIALIZATION  - END =======" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::LOGFILE, ss);
+	ss << "======= INDEX INITIALIZATION  - END =======" << endl; logger.Log(Logger::LOGFILE, ss);
 
 }
 
 Mappings* AlignOpticalMaps(vector<Fragment> &optMap, RefMaps &refMaps, map<int, vector<IndexRecord> > &index)
 {
-	ss << "======= ALIGNING - START =======" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "======= ALIGNING - START =======" << endl; logger.Log(Logger::LOGFILE, ss);
 	clock_t begin_time = clock();
 	//initialize a vector of results where the threads will store the mappings of individual reads
 	//after all the opt maps will be mapped, the vector will be serialized
@@ -520,7 +519,7 @@ Mappings* AlignOpticalMaps(vector<Fragment> &optMap, RefMaps &refMaps, map<int, 
 
 	int cntThreads = thread::hardware_concurrency();
 	if (params.cntThreads > 0) cntThreads = params.cntThreads;
-	ss << "Using " << cntThreads << " threads" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "Using " << cntThreads << " threads" << endl; logger.Log(Logger::LOGFILE, ss);
 	int batchSize = ceil(optMap.size() / (double)cntThreads);
 	assert(batchSize > 0);
 	vector<thread> threads;
@@ -538,15 +537,15 @@ Mappings* AlignOpticalMaps(vector<Fragment> &optMap, RefMaps &refMaps, map<int, 
 	}
 	for (int i = 0; i < threads.size(); i++) threads[i].join();
 
-	ss << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::STDOUT, ss);
-	ss << "======= ALIGNING - END =======" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::LOGFILE, ss);
+	ss << "======= ALIGNING - END =======" << endl; logger.Log(Logger::LOGFILE, ss);
 
 	return omMappings;
 }
 
 void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &refMaps)
 {
-	ss << endl << "Outputting results..." << endl; logger.Log(Logger::STDOUT, ss);
+	ss << endl << "Outputting results..." << endl; logger.Log(Logger::LOGFILE, ss);
 	ss << "ix;om_length;rm_length;length_diff;candidate_sections_length;score_calucations" << endl; logger.Log(Logger::STATSFILE, ss);
 	int ixCSL = 0;
 
@@ -597,10 +596,10 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			/*ss << "# " << ixMappings + 1 << "\tscore: " << mappings[ixMappings].score << "\tlength-diff: " << abs(omLength - rmLength)
 			<< "\tmap: " << posOmChrom << ":" << posOmFirst << "-" << posOmLast << "->" << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);*/
 
-			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);
-			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
-			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
-			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::STDOUT, ss);
+			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::STDOUT, ss);
+			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::STDOUT, ss);
+			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::STDOUT, ss);
 			std::ostringstream ssAln, ssAlnDetail;
 			ssAln << "ALN: ";
 			ssAlnDetail << "ALN_DETAIL: ";
@@ -651,8 +650,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				ssAlnDetail << strings::trim(ssRmLengths.str()) << ":" << strings::trim(ssOmLengths.str());
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
-			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
-			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
+			ssAln << endl; logger.Log(Logger::STDOUT, ssAln);
+			ssAlnDetail << endl; logger.Log(Logger::STDOUT, ssAlnDetail);
 
 			//For debugging purposes we want to check whether the OM comes from the same place in RM (debugInfo in OM = position in RM)	
 			//Beggining of the OM segement is stored in debugInfo[2] and end in the last element of debugInfo, matching segements in refmap is stored in matches.matches
@@ -674,7 +673,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			//	ss << endl << endl; logger.Log(Logger::LOGFILE, ss);
 			//}
 		}
-		ss << endl; logger.Log(Logger::RESFILE, ss);
+		ss << endl; logger.Log(Logger::STDOUT, ss);
 		ss << "-----------------" << endl; logger.Log(Logger::LOGFILE, ss);
 	}
 	ss << "Incorreclty mapped fragments: " << cntIncorrectlyMapped << endl; logger.Log(Logger::LOGFILE, ss);
