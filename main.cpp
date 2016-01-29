@@ -374,6 +374,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 			}
 		} mapLess;
 		sort(mappings.begin(), mappings.end(), mapLess);
+		//sort(mappings.begin(), mappings.end(), [](Mapping & a, Mapping & b) -> bool	{return a.score < b.score; });
 		mappings.erase(mappings.begin() + params.topK, mappings.end());
 		resultSet[ixOM] = mappings;
 		

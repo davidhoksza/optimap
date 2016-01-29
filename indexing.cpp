@@ -54,7 +54,14 @@ vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, 
 		l++;
 	}
 
-	sort(candidates.begin(), candidates.end(), [](IndexRecord & a, IndexRecord & b) -> bool	{return a.start_position < b.start_position;});
+	struct {
+		bool operator()(IndexRecord a, IndexRecord b)
+		{
+			return a.start_position < b.start_position;
+		}
+	} ixPosLess;
+	sort(candidates.begin(), candidates.end(), ixPosLess);
+	//sort(candidates.begin(), candidates.end(), [](IndexRecord & a, IndexRecord & b) -> bool	{return a.start_position < b.start_position;});
 
 	return candidates;
 }
