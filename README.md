@@ -5,7 +5,7 @@
 
 ### Requirements
 
-gcc 4.7 or newer
+gcc 4.6 or newer
 
 ### Download optimap
 
