@@ -433,7 +433,7 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::CmdLine cmd("Optical mapping", ' ', "0.8");
 		TCLAP::ValueArg<std::string> omFileNameArg("o", "optmap", "Optical maps file", true, "", "filename");
 		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file", true, "", "filename");
-		TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file", true, "", "filename");
+		//TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file", true, "", "filename");
 		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
 		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
 		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
@@ -446,7 +446,7 @@ void ParseCmdLine(int argc, char** argv)
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
-		cmd.add(outFileNameArg);
+		//cmd.add(outFileNameArg);
 		cmd.add(logFileNameArg);
 		cmd.add(ixStartArg);
 		cmd.add(ixEndArg);
@@ -461,7 +461,7 @@ void ParseCmdLine(int argc, char** argv)
 
 		params.omFileName = omFileNameArg.getValue();
 		params.rmFileName = rmFileNameArg.getValue();
-		params.outFileName = outFileNameArg.getValue();
+		//params.outFileName = outFileNameArg.getValue();
 		params.logFileName = logFileNameArg.getValue();
 		params.ixOmStart = ixStartArg.getValue();
 		params.ixOmEnd = ixEndArg.getValue();
@@ -551,9 +551,9 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 
 	/*ss << "#om id;om indeces;rm positions;om lengths; rm lengths" << endl; logger.Log(Logger::RESFILE, ss);*/
 
-	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
-	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);
-	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::STDOUT, ss);
 
 	int cntIncorrectlyMapped = 0;;
 	for (int ixOM = 0; ixOM < optMap.size(); ixOM++)
