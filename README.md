@@ -5,7 +5,8 @@
 
 ### Requirements
 
-gcc 4.6 or newer
+- gcc 4.6 or newer
+- [htslib](https://github.com/samtools/htslib): C-library for handling high-throughput sequencing data
 
 ### Download optimap
 
