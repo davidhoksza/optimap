@@ -8,9 +8,9 @@
 #define TYPES_H
 
 #include <vector>
-#include <map>
 #include <string>
 #include <limits>
+#include <map>
 
 struct DpMatrixCell {
 	int value;
@@ -34,7 +34,7 @@ struct RMRead {
 	std::string	chromosome;
 };
 
-typedef std::map <std::string, std::vector<RMRead>> RefMaps; //one map per chromosome
+typedef std::map <std::string, std::vector<RMRead> > RefMaps; //one map per chromosome
 
 //one optical map fragment can optimally map to multiple positions in the reference map
 //each mapping consists of a vector of mapped positions, i.e. a pair

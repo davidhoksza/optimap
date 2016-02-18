@@ -45,7 +45,7 @@ Params params;
 
 void error_exit(string message)
 {
-	cerr << message;
+	cerr << message << endl;
 	exit(EXIT_FAILURE);
 }
 
@@ -60,7 +60,7 @@ istream* open_map_file(string fileName)
 	}
 	else {
 		ifs = new ifstream(fileName);
-		if (!((igzstream*)ifs)->is_open()) error_exit(errorMsg);
+		if (!((ifstream*)ifs)->is_open()) error_exit(errorMsg);
 	}
 	if (!ifs->good()) error_exit(errorMsg);
 

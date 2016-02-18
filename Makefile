@@ -11,7 +11,7 @@ OBJECTS=$(SOURCES:.cpp=.o)
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(OBJECTS) -lhts -lz -lm
+	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(OBJECTS) -lz
 
 main.o: main.cpp constants.h indexing.h types.h logger.h string_functions.h
 	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c main.cpp
