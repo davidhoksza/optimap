@@ -14,6 +14,9 @@
 
 #include "tclap/CmdLine.h"
 
+//#include "zlib.h"
+#include "gzstream/gzstream.h"
+
 #include <stdio.h>
 #include <stdlib.h> 
 #include <assert.h>  
@@ -28,8 +31,6 @@
 #include <sstream>
 #include <algorithm>
 
-#include <htslib/hts.h>
-
 using namespace std;
 
 mutex mutexOM;
@@ -42,53 +43,50 @@ unsigned long int scoresComputed = 0;
 
 Params params;
 
+void error_exit(string message)
+{
+	cerr << message;
+	exit(EXIT_FAILURE);
+}
+
+istream* open_map_file(string fileName)
+{
+	string errorMsg = "ERROR: Reference map file " + fileName + " could not be opened";
+	istream *ifs;
+	if (strings::ends_with(fileName, ".gz"))
+	{
+		ifs = new igzstream(fileName.c_str());
+		if (!((igzstream*)ifs)->is_open()) error_exit(errorMsg);
+	}
+	else {
+		ifs = new ifstream(fileName);
+		if (!((igzstream*)ifs)->is_open()) error_exit(errorMsg);
+	}
+	if (!ifs->good()) error_exit(errorMsg);
+
+	return ifs;
+}
+
 RefMaps parse_ref_map(string fileName)
 {
 	RefMaps refMaps;
 
+	istream *ifs = open_map_file(fileName);
 
-	ifstream ifs(fileName);
-
-	if (!ifs.is_open())
-	{
-		cout << "ERROR: Reference map file " + fileName + " could not be opened" << endl;
-		exit(EXIT_FAILURE);
-	}
-
-	kstring_t str = { 0, 0, 0 };
-	htsFile* fh = hts_open(fileName.c_str(), "r");
 	string line;
-	while (hts_getline(fh, 2, &str) >= 0)
-	{
-		line = string(str.s);
-
+	for (string line; getline(*ifs, line);) {
 		vector<string> strs = strings::split(line, "\t");
-
+	
 		RMRead auxRMRead;
-		auxRMRead.chromosome = strings::trim(strs[0]);
+		auxRMRead.chromosome = strings::trim(strs[0]);		
 		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
 		auxRMRead.start = stof(strs[1]);
 		auxRMRead.length = stof(strs[3]) * 1000;
 		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
 		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
-
 	}
-	hts_close(fh);
-	free(str.s);
 
-	//	string line;
-	//	for (string line; getline(ifs, line);) {
-	//		vector<string> strs = strings::split(line, "\t");
-	//
-	//		RMRead auxRMRead;
-	//		auxRMRead.chromosome = strings::trim(strs[0]);		
-	//		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
-	//		auxRMRead.start = stof(strs[1]);
-	//		auxRMRead.length = stof(strs[3]) * 1000;
-	//		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
-	//		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
-	//	}
-
+	delete ifs;
 	return refMaps;
 }
 
@@ -96,24 +94,14 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 {
 	vector<Fragment> optMap;
 
-	ifstream ifs(fileName);
-
-	if (!ifs.is_open())
-	{
-		cout << "ERROR: Optical map file " + fileName + " could not be opened" << endl;
-		exit(EXIT_FAILURE);
-	}
+	istream *ifs = open_map_file(fileName);
 
 	string line;
 	char buffer[20];
 	vector<string> cleavageSites;
-	kstring_t str = { 0, 0, 0 };
-	htsFile* fh = hts_open(fileName.c_str(), "r");
-	//	for (std::string line; getline(ifs, line);) 
-	while (hts_getline(fh, 2, &str) >= 0)
-	{
-		line = string(str.s);
 
+	for (std::string line; getline(*ifs, line);) 	
+	{		
 		if (line.find_first_of("debug") != string::npos)
 		{
 			stringstream ss(line); // Insert the string into a stream
@@ -121,6 +109,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 			ss >> strBuffer;
 			while (ss >> strBuffer) cleavageSites.push_back(strBuffer);
 		}
+		string fragName = strings::trim(line);
 		if (line.find_first_of("KpnI") != string::npos)
 		{
 			Fragment f;
@@ -137,6 +126,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 						int aux = 1000 * atof(buffer);
 						f.reads.push_back(aux);
 						f.length += aux;
+						f.name = fragName;
 					}
 					pos = -1;
 				}
@@ -163,9 +153,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 		}
 	}
 
-	hts_close(fh);
-	free(str.s);
-
+	delete ifs;
 	return optMap;
 }
 
@@ -422,8 +410,8 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 void InitLogging()
 {
 	if (!params.logFileName.empty())	logger.InitChannel(Logger::LOGFILE, params.logFileName);
-	logger.InitChannel(Logger::RESFILE, params.outFileName); //logger.InitChannel(Logger::RESFILE, "../mapping.out");
-	logger.InitChannel(Logger::STATSFILE, "../stats.csv");
+	if (params.outFileName!= "") logger.InitChannel(Logger::RESFILE, params.outFileName); 
+	//logger.InitChannel(Logger::STATSFILE, "../stats.csv");
 }
 
 void ParseCmdLine(int argc, char** argv)
@@ -431,9 +419,9 @@ void ParseCmdLine(int argc, char** argv)
 	try
 	{
 		TCLAP::CmdLine cmd("Optical mapping", ' ', "0.8");
-		TCLAP::ValueArg<std::string> omFileNameArg("o", "optmap", "Optical maps file", true, "", "filename");
-		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file", true, "", "filename");
-		//TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file", true, "", "filename");
+		TCLAP::ValueArg<std::string> omFileNameArg("o", "optmap", "Optical maps file (either plain text or gzipped)", true, "", "filename");
+		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file (either plain text or gzipped)", true, "", "filename");
+		TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file (if not present, the standard output will be used)", false, "", "filename");
 		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
 		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
 		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
@@ -446,7 +434,7 @@ void ParseCmdLine(int argc, char** argv)
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
-		//cmd.add(outFileNameArg);
+		cmd.add(outFileNameArg);
 		cmd.add(logFileNameArg);
 		cmd.add(ixStartArg);
 		cmd.add(ixEndArg);
@@ -461,7 +449,7 @@ void ParseCmdLine(int argc, char** argv)
 
 		params.omFileName = omFileNameArg.getValue();
 		params.rmFileName = rmFileNameArg.getValue();
-		//params.outFileName = outFileNameArg.getValue();
+		params.outFileName = outFileNameArg.getValue();
 		params.logFileName = logFileNameArg.getValue();
 		params.ixOmStart = ixStartArg.getValue();
 		params.ixOmEnd = ixEndArg.getValue();
@@ -526,7 +514,7 @@ Mappings* AlignOpticalMaps(vector<Fragment> &optMap, RefMaps &refMaps, map<int, 
 
 	int ixFrom = 0, ixTo = optMap.size() - 1;
 	if (params.ixOmStart > 0) ixFrom = params.ixOmStart;
-	if (params.ixOmEnd >= 0) ixTo = params.ixOmEnd;
+	if (params.ixOmEnd >= 0) ixTo = min(params.ixOmEnd, (int)optMap.size() - 1);
 
 	while (ixFrom <= ixTo)
 	{
@@ -547,19 +535,20 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 {
 	ss << endl << "Outputting results..." << endl; logger.Log(Logger::LOGFILE, ss);
 	ss << "ix;om_length;rm_length;length_diff;candidate_sections_length;score_calucations" << endl; logger.Log(Logger::STATSFILE, ss);
-	int ixCSL = 0;
+	//int ixCSL = 0;
 
 	/*ss << "#om id;om indeces;rm positions;om lengths; rm lengths" << endl; logger.Log(Logger::RESFILE, ss);*/
 
-	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::STDOUT, ss);
-	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::STDOUT, ss);
-	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::STDOUT, ss);
+	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
 
 	int cntIncorrectlyMapped = 0;;
 	for (int ixOM = 0; ixOM < optMap.size(); ixOM++)
 	{
 		if (ixOM < params.ixOmStart || (ixOM > params.ixOmEnd && params.ixOmEnd != -1)) continue;
 		ss << "EXP_OPTMAP_IX: " << ixOM << endl; logger.Log(Logger::RESFILE, ss);
+		ss << "NAME: " << optMap[ixOM].name << endl; logger.Log(Logger::RESFILE, ss);
 		Mappings mappings = omMappings[ixOM];
 		for (int ixMappings = 0; ixMappings < mappings.size(); ixMappings++)
 		{
@@ -569,8 +558,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			int omLength = 0, rmLength = 0;
 			for (int ixAux = mappings[ixMappings].alignment.begin()->first + 1; ixAux <= (mappings[ixMappings].alignment.end() - 1)->first; ixAux++) omLength += optMap[ixOM].reads[ixAux - 1];
 			for (int ixAux = mappings[ixMappings].alignment.begin()->second + 1; ixAux <= (mappings[ixMappings].alignment.end() - 1)->second; ixAux++) rmLength += refMaps[chr][ixAux - 1].length;
-			int aux = (candidateSectionLengths.size() > ixCSL ? candidateSectionLengths[ixCSL++] : -1);
-			ss << ixOM << ";" << omLength << ";" << rmLength << ";" << abs(omLength - rmLength) << ";" << aux << ";" << scoresCalculations[ixOM] << endl; logger.Log(Logger::STATSFILE, ss);
+			//int aux = (candidateSectionLengths.size() > ixCSL ? candidateSectionLengths[ixCSL++] : -1);
+			//ss << ixOM << ";" << omLength << ";" << rmLength << ";" << abs(omLength - rmLength) << ";" << aux << ";" << scoresCalculations[ixOM] << endl; logger.Log(Logger::STATSFILE, ss);
 
 			//ss << "# " << ixMappings + 1 << ". mapping with score " << mappings[ixMappings].score << " and real length difference "  << abs(omLength - rmLength) << endl; logger.Log(Logger::RESFILE, ss);
 			//int posOmFirst = optMap[ixOM].reads[mappings[ixMappings].alignment[0].first];
@@ -596,10 +585,10 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			/*ss << "# " << ixMappings + 1 << "\tscore: " << mappings[ixMappings].score << "\tlength-diff: " << abs(omLength - rmLength)
 			<< "\tmap: " << posOmChrom << ":" << posOmFirst << "-" << posOmLast << "->" << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);*/
 
-			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::STDOUT, ss);
-			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::STDOUT, ss);
-			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::STDOUT, ss);
-			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::STDOUT, ss);
+			ss << "REF_POS: " << posRmChrom << ":" << posRmFirst << "-" << posRmLast << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
 			std::ostringstream ssAln, ssAlnDetail;
 			ssAln << "ALN: ";
 			ssAlnDetail << "ALN_DETAIL: ";
@@ -650,8 +639,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				ssAlnDetail << strings::trim(ssRmLengths.str()) << ":" << strings::trim(ssOmLengths.str());
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
-			ssAln << endl; logger.Log(Logger::STDOUT, ssAln);
-			ssAlnDetail << endl; logger.Log(Logger::STDOUT, ssAlnDetail);
+			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
+			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
 
 			//For debugging purposes we want to check whether the OM comes from the same place in RM (debugInfo in OM = position in RM)	
 			//Beggining of the OM segement is stored in debugInfo[2] and end in the last element of debugInfo, matching segements in refmap is stored in matches.matches
@@ -672,8 +661,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			//	ss << "RM info (first-last position): " << rmStart << " - " << rmEnd;
 			//	ss << endl << endl; logger.Log(Logger::LOGFILE, ss);
 			//}
-		}
-		ss << endl; logger.Log(Logger::STDOUT, ss);
+		}		
+		ss << endl; logger.Log(Logger::RESFILE, ss);
 		ss << "-----------------" << endl; logger.Log(Logger::LOGFILE, ss);
 	}
 	ss << "Incorreclty mapped fragments: " << cntIncorrectlyMapped << endl; logger.Log(Logger::LOGFILE, ss);

@@ -1,23 +1,26 @@
 CXX = g++
 RM = rm -f
-CFLAGS = -pthread -std=c++0x -I./ -m64 -Wall -g -Wno-sign-compare
+CFLAGS = -pthread -std=c++0x -I./ -I./gzstream -m64 -Wall -g -Wno-sign-compare
 DEBUGFLAGS   = -O0 -D _DEBUG
 RELEASEFLAGS = -O2 -D NDEBUG 
 TARGET  = omap
 
-SOURCES=main.cpp indexing.cpp
+SOURCES=main.cpp indexing.cpp gzstream.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
-	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -o $(TARGET) $(OBJECTS) -lhts -lz -lm
+	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -o $(TARGET) $(OBJECTS) -lhts -lz -lm
 
 main.o: main.cpp constants.h indexing.h types.h logger.h string_functions.h
-	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -c main.cpp
+	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c main.cpp
 
-indexing.o: constants.h types.h
-	$(CXX) $(CFLAGS) $(RELEASEFLAGS) -c indexing.cpp
+indexing.o: indexing.cpp indexing.h
+	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c indexing.cpp
+
+gzstream.o: gzstream/gzstream.cpp gzstream/gzstream.h
+	$(CXX) $(CFLAGS) $(DEBUGFLAGS) -c gzstream/gzstream.cpp
 
 clean:
 	$(RM) $(OBJECTS)

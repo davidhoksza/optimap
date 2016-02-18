@@ -14,7 +14,7 @@
 using namespace std;
 
 namespace strings{
-	vector<string> split(string s, string delimiter)
+	inline vector<string> split(string s, string delimiter)
 	{
 		vector<string> strings;
 		size_t pos = 0;
@@ -28,7 +28,7 @@ namespace strings{
 		return strings;
 	}
 
-	std::string trim(const std::string &s)
+	inline std::string trim(const std::string &s)
 	{
 		std::string::const_iterator it = s.begin();
 		while (it != s.end() && isspace(*it))
@@ -41,11 +41,17 @@ namespace strings{
 		return std::string(it, rit.base());
 	}
 
-	std::string upper(const std::string s)
+	inline std::string upper(const std::string s)
 	{
 		string sUpper = s;
 		std::transform(sUpper.begin(), sUpper.end(), sUpper.begin(), ::toupper);
 		return sUpper;
+	}
+
+	inline bool ends_with(std::string const & value, std::string const & ending)
+	{
+		if (ending.size() > value.size()) return false;
+		return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 	}
 }
 

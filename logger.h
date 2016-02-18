@@ -30,7 +30,7 @@ public:
 	~Logger();
 	void InitChannel(Channel channel, std::string filename);
 	void Log(int channels, std::string message);
-	void Log(int channels, std::ostringstream &messageStream);
+	void Log(int channels, std::ostringstream &messageStream, bool clearStream = true);
 
 private:
 	std::ofstream ofsLog, ofsStats, ofsResults;
@@ -59,26 +59,26 @@ void Logger::InitChannel(Channel channel, std::string filename)
 		ofsStats.open(filename);
 		break;
 	case Channel::RESFILE:
-		ofsResults.open(filename);
+		if (filename != "")	ofsResults.open(filename);
 		break;
 	default:
 		break;
 	}
 }
 
-void Logger::Log(int channels, std::string message)
+inline void Logger::Log(int channels, std::string message)
 {
 	if (channels & Channel::STDOUT) std::cout << message;
-	if (channels & Channel::LOGFILE) ofsLog << message;
-	if (channels & Channel::STATSFILE) ofsStats << message;
-	if (channels & Channel::RESFILE) ofsResults << message;
+	if ((channels & Channel::LOGFILE) && ofsLog.is_open()) ofsLog << message;
+	if ((channels & Channel::STATSFILE) && ofsStats.is_open()) ofsStats << message;
+	if (channels & Channel::RESFILE) ofsResults.is_open() ? ofsResults << message : std::cout << message;
 }
 
-void Logger::Log(int channels, std::ostringstream &messageStream)
+void Logger::Log(int channels, std::ostringstream &messageStream, bool clearStream)
 {
 	mutexLog.lock();
 	Log(channels, messageStream.str());
-	messageStream.str(std::string());
+	if (clearStream) messageStream.str(std::string());
 	mutexLog.unlock();
 }
 

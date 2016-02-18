@@ -23,6 +23,7 @@ struct Fragment {
 	int							length;
 	std::vector<int>			reads;
 	std::vector<std::string>	debugInfo;
+	std::string					name;
 
 	Fragment() : length(0) {};
 };
