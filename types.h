@@ -17,6 +17,7 @@ struct DpMatrixCell {
 	int sourceRow, sourceColumn;
 
 	DpMatrixCell() : value(0), sourceRow(-1), sourceColumn(-1) {};
+	void flush() { value = 0; sourceRow = -1; sourceColumn = -1; };
 };
 
 struct Fragment {
@@ -50,6 +51,7 @@ struct Mapping {
 	int			score;		//score from the dp
 	double		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
 	std::string chromosome; 
+	bool		reversed = false;
 
 	Mapping(int _score, OmRmPath _alignment) : alignment(_alignment), score(_score) {};
 	void ComputeQuality() {

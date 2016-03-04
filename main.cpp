@@ -100,19 +100,21 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 	char buffer[20];
 	vector<string> cleavageSites;
 
+	string fragName;
 	for (std::string line; getline(*ifs, line);) 	
 	{		
-		if (line.find_first_of("debug") != string::npos)
+		if (line.find("debug") != string::npos)
 		{
 			stringstream ss(line); // Insert the string into a stream
 			string strBuffer;
 			ss >> strBuffer;
 			while (ss >> strBuffer) cleavageSites.push_back(strBuffer);
 		}
-		string fragName = strings::trim(line);
-		if (line.find_first_of("KpnI") != string::npos)
+		
+		if (line.find("KpnI") != string::npos)
 		{
 			Fragment f;
+			f.name = fragName;
 
 			int pos = -1;
 
@@ -125,8 +127,7 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 					if (buffer[0] != 'K' && pos > 0) {
 						int aux = 1000 * atof(buffer);
 						f.reads.push_back(aux);
-						f.length += aux;
-						f.name = fragName;
+						f.length += aux;						
 					}
 					pos = -1;
 				}
@@ -151,10 +152,18 @@ vector<Fragment> parse_opt_map(string fileName, int topN = numeric_limits<int>::
 			optMap.push_back(f);
 			if (optMap.size() >= topN) break;
 		}
+		else fragName = strings::trim(line);
 	}
 
 	delete ifs;
 	return optMap;
+}
+
+void clean_dp_matrix(DpMatrixCell ** matrix, int height, int width )
+{
+	for (int ixRow = 0; ixRow < height; ixRow++)
+		for (int ixCol = 0; ixCol < width; ixCol++)
+			matrix[ixRow][ixCol].flush();
 }
 
 int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
@@ -177,7 +186,7 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 	{
 		bool isLastRow = ixRow == fragment.size() ? true : false;
 
-		//we need to compute the first column in the last row where it makes sense to search for mins
+		//we need to find the first column in the last row where it makes sense to search for mins
 		//for example the first column does not make sense since that would mean the whole OM fragment was
 		//aligned with one read in the reference map
 		//int ixColResultFrom = ceil(fragment.size() / (float) DP_WINDOW_SIZE);
@@ -192,7 +201,11 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 			for (int ixWindowRow = 1; ixWindowRow <= params.mapDpWindowSize; ++ixWindowRow)
 			{
 				if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
-				rowValue += fragment[ixRow - ixWindowRow];
+				int ixFrag = ixRow - ixWindowRow;
+				//ends of fragments can be aligned with zero score since
+				//the molecules forming fragments were not created with a restriction enzyme
+				if (ixFrag > 0 && ixFrag < fragment.size()-1) 
+					rowValue += fragment[ixFrag]; 
 				int colValue = 0;
 				for (int ixWindowCol = 1; ixWindowCol <= params.mapDpWindowSize; ++ixWindowCol)
 				{
@@ -281,11 +294,34 @@ Mappings do_mapping(vector<int> &fragment, std::vector<RMRead> &refMap, vector<I
 	DpMatrixCell **dpMatrix = new DpMatrixCell*[fragment.size() + 1];
 	for (int ixDPM = 0; ixDPM < fragment.size() + 1; ++ixDPM) dpMatrix[ixDPM] = new DpMatrixCell[refMap.size() + 1];
 
-	Mappings matchSequences;
+	Mappings matchSequences, matchSequencesRev;
 	if (candidates.size() == 0)
 	{
 		dp_fill_matrix(dpMatrix, fragment, refMap);
 		matchSequences = dp_backtrack(dpMatrix, fragment.size() + 1, refMap.size() + 1);
+
+		//repeat the process with reversed fragment
+		clean_dp_matrix(dpMatrix, fragment.size() + 1, refMap.size() + 1);
+		std::reverse(fragment.begin(), fragment.end());
+		dp_fill_matrix(dpMatrix, fragment, refMap);
+		matchSequencesRev = dp_backtrack(dpMatrix, fragment.size() + 1, refMap.size() + 1);
+		for (int ixMSR = 0; ixMSR < matchSequencesRev.size(); ixMSR++) matchSequencesRev[ixMSR].reversed = true;
+
+		//add the reverse matches into the normal matches vector
+		matchSequences.insert(matchSequences.end(), matchSequencesRev.begin(), matchSequencesRev.end());
+
+		//restrict the list of sequences to topK		
+		struct {
+			bool operator()(Mapping a, Mapping b)
+			{
+				return a.score < b.score;
+			}
+		} mapLess;
+		sort(matchSequences.begin(), matchSequences.end(), mapLess);
+		matchSequences.erase(matchSequences.begin() + params.topK, matchSequences.end());
+
+		//reverse the fragment back
+		std::reverse(fragment.begin(), fragment.end());
 	}
 	else
 	{
@@ -589,6 +625,10 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			ss << "QUALITY: " << mappings[ixMappings].quality << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "DP_SCORE: " << mappings[ixMappings].score << endl; logger.Log(Logger::RESFILE, ss);
 			ss << "LEN_DIFF: " << rmLength - omLength << endl; logger.Log(Logger::RESFILE, ss);
+			ss << "REVERSED: ";
+			mappings[ixMappings].reversed ? ss << "1" : ss << "0";
+			ss << endl; logger.Log(Logger::RESFILE, ss);
+
 			std::ostringstream ssAln, ssAlnDetail;
 			ssAln << "ALN: ";
 			ssAlnDetail << "ALN_DETAIL: ";
@@ -640,7 +680,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
 			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
-			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
+			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);			
 
 			//For debugging purposes we want to check whether the OM comes from the same place in RM (debugInfo in OM = position in RM)	
 			//Beggining of the OM segement is stored in debugInfo[2] and end in the last element of debugInfo, matching segements in refmap is stored in matches.matches
