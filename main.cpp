@@ -653,7 +653,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				while (ixOMAux <= mappings[ixMappings].alignment[ixAlignment].first)
 				{
 					int length = optMap[ixOM].reads[ixOMAux - 1];
-					sumOM += length;
+					if (cntOM > 0 && ixOMAux < mappings[ixMappings].alignment[ixAlignment].first) sumOM += length; //ends of mapping are scored 0
 					ssOmIxs << " " << ixOMAux - 1;
 					if (cntOM > 0) ssOmLengths << ",";
 					ssOmLengths << length;
@@ -664,7 +664,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				while (ixRMAux <= mappings[ixMappings].alignment[ixAlignment].second)
 				{
 					int length = refMaps[chr][ixRMAux - 1].length;
-					sumRM += length;
+					if (cntRM > 0 && ixOMAux < mappings[ixMappings].alignment[ixAlignment].second) sumRM += length; //ends of mapping are scored 0
 					ssRmPos << " " << refMaps[chr][ixRMAux - 1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
 					if (cntRM > 0) ssRmLengths << ",";
 					ssRmLengths << length;
@@ -680,7 +680,7 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
 			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
-			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);			
+			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
 
 			//For debugging purposes we want to check whether the OM comes from the same place in RM (debugInfo in OM = position in RM)	
 			//Beggining of the OM segement is stored in debugInfo[2] and end in the last element of debugInfo, matching segements in refmap is stored in matches.matches
