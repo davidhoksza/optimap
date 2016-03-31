@@ -168,7 +168,7 @@ inline SCORE_TYPE transform_prob(SCORE_TYPE p)
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
 }
 
-SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
+void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
 {
 	if (ir.start_position == -1) ir.start_position = 1;
 	else ir.start_position++; //the start position is 0-based but here we have to account for the first zero coumn in the DP matrix
@@ -197,7 +197,12 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::ve
 			//matrix[ixRow][ixCol].value = matrix[ixRow - 1][ixCol - 1].value + abs(fragment[ixRow - 1] - reference[ixCol - 1]);
 			DpMatrixCell minCell;
 			minCell.value = numeric_limits<SCORE_TYPE>::max();
+			minCell.sourceColumn = ixCol - 1; //This value is used when no good match is found
+			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
 
+			//First and last fragments are scored 0
+			
+			
 			int rowValue = 0;
 			for (int ixWindowRow = 1; ixWindowRow <= params.mapDpWindowSize; ++ixWindowRow)
 			{
@@ -225,6 +230,7 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::ve
 
 					float x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
 					score += stats::transform_prob(x);
+					if (score >= SUB_MAX) continue;
 
 					//penalty computation
 					//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
@@ -238,10 +244,10 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::ve
 					score += stats::transform_prob(auxP);
 
 
-					//x = stats::pdf_poisson(ixWindowRow - 1, rowValue * params.falseCutProb);
+					x = stats::pdf_poisson_full(ixWindowRow - 1, rowValue * params.falseCutProb);
 					// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
 					// we can provide only the rowValue and use it as index to the array with precomputed values.
-					x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
+					//x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
 					score += stats::transform_prob(x);
 
 					//cout << ixRow - ixWindowRow << ";" << ixCol - ixWindowCol << endl;
@@ -258,8 +264,6 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::ve
 			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minMappingValue) minMappingValue = minCell.value;
 		}
 	}
-
-	return minMappingValue;
 }
 
 

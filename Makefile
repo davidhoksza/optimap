@@ -1,8 +1,8 @@
 CXX = g++
 RM = rm -f
 CFLAGS = -pthread -std=c++0x -I./ -I./gzstream -m64 -Wall -g -Wno-sign-compare
-DEBUGFLAGS   = -O0 -D _DEBUG
-RELEASEFLAGS = -O2 -D NDEBUG 
+DEBUGFLAGS   = -O0 -D NDEBUG
+RELEASEFLAGS = -O3 
 TARGET  = optimap
 
 SOURCES=main.cpp indexing.cpp gzstream.cpp
