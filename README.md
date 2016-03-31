@@ -26,7 +26,7 @@ Command-line usage
 Run:
 
 ```
-./omap -r data/ref.map -o data/experiment.maps -k 10 -b 0 -e 3 --read-error-stddev 0.05 --cut-eff 0.8
+./optimap -r data/ref.map -o data/experiment.maps -k 10 -b 0 -e 3 --read-error-stddev 0.05 --cut-eff 0.8
 ```
   
 to map first 4 (parameters *b* and *e* - optional) maps in *experiment.maps* to *ref.map*, obtain 10 highest scoring alignments and return them on the standard output. The input map files can be either plain text files or gzipped files (file name needs to end with .gz).
