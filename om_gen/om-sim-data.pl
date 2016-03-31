@@ -23,6 +23,7 @@ sub error
         "Usage: om-sim-data [OPTIONS]\n",
         "Options:\n",
         "   -m, --map <ref.map.gz>     Reference map, output of om-fasta-to-map\n",
+        "   -d, --digestion n          Digestion rate (0;1]\n",
         "   -h, -?, --help             This help message.\n",
         "\n";
     exit -1;
@@ -43,6 +44,7 @@ sub parse_params
     while (defined(my $arg=shift(@ARGV)))
     {
         if ( $arg eq '-m' || $arg eq '--map' ) { $$opts{map_fname} = shift(@ARGV); next; }
+        if ( $arg eq '-d' || $arg eq '--digestion' ) { $$opts{dgst_rate} = shift(@ARGV); next; }
         if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
         error("Unknown parameter \"$arg\". Run -h for help.\n");
     }
@@ -91,6 +93,7 @@ sub sim_data
         my $out = "\tKpnI\tK\t";
         $len = 0;                   # uncleaved length [kbp]
         my $prn_len = 0;            # molecule length printed so far [bp]
+        my $missed_sites = 0;
         for (my $i=0; $i<@buf; $i++)
         {
             my $xkb = $buf[$i];       # length of the current reference fragment
@@ -107,12 +110,13 @@ sub sim_data
             	$out .= "\t".(($prn_len - $brk_at)/1000);
             	$len = 0;
             	
-            	#while ($brk_at < $prn_len) {$brk_at += next_break($$opts{brk_rate});}
-            	$brk_at = next_break($$opts{brk_rate});
+            	while ($brk_at < $prn_len) {$brk_at += next_break($$opts{brk_rate});}
+            	#$brk_at = next_break($$opts{brk_rate});
                 next;
             }
-            if ( rand(1.0)>$$opts{dgst_rate} ) # random cleavage site omission
+            if ( rand(1.0)>$$opts{dgst_rate} && $missed_sites < 4 ) # random cleavage site omission
             { 
+                $missed_sites += 1;
                 $len += $xkb;
                 next; 
             }

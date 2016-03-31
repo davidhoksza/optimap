@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2015 by David Hoksza (david.hoksza@gmail.com)
+* Copyright (C) 2016 by David Hoksza (david.hoksza@gmail.com)
 *
 * Released under the MIT license, see LICENSE.txt
 */
@@ -13,7 +13,7 @@
 #include <map>
 
 struct DpMatrixCell {
-	int value;
+	float value;
 	int sourceRow, sourceColumn;
 
 	DpMatrixCell() : value(0), sourceRow(-1), sourceColumn(-1) {};
@@ -46,14 +46,16 @@ typedef std::map <std::string, std::vector<RMRead> > RefMaps; //one map per chro
 typedef std::pair <int, int> OmRmMatch;
 typedef std::vector<OmRmMatch> OmRmPath;
 
+typedef float SCORE_TYPE;
+
 struct Mapping {		
 	OmRmPath	alignment;
-	int			score;		//score from the dp
-	double		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
+	SCORE_TYPE	score;		//score from the dp
+	float		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
 	std::string chromosome; 
 	bool		reversed = false;
 
-	Mapping(int _score, OmRmPath _alignment) : alignment(_alignment), score(_score) {};
+	Mapping(float _score, OmRmPath _alignment) : alignment(_alignment), score(_score) {};
 	void ComputeQuality() {
 		quality = score;
 	}
@@ -71,11 +73,15 @@ struct Params {
 	int		cntThreads;
 	int		topK;
 
-	int		mapOmMissedPenalty;
-	int		mapRmMissedPenalty;
+	//int		mapOmMissedPenalty;
+	//int		mapRmMissedPenalty;
 	int		mapDpWindowSize;
+	float	sizingErrorStddev;
+	int		smallFragmentThreshold;
+	float	missRestrictionProb;
+	float	noMissRestrictionProb; // computed as 1 - ((1 - pow(params.missRestrictionProb, params.mapDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1)
+	float	falseCutProb;
 
-	//Params() : logFileName(NULL), cntThreads(-1) {};
 };
 
 #endif // TYPES_H

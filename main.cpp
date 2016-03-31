@@ -1,20 +1,21 @@
 /*
-* Copyright (C) 2015 by David Hoksza (david.hoksza@gmail.com)
+* Copyright (C) 2016 by David Hoksza (david.hoksza@gmail.com)
 *
 * Released under the MIT license, see LICENSE.txt
 */
 
 #define _SCL_SECURE_NO_WARNINGS
 
+#include "common.h"
 #include "constants.h"
 #include "indexing.h"
 #include "types.h"
 #include "logger.h"
 #include "string_functions.h"
+#include "stats.h"
 
 #include "tclap/CmdLine.h"
 
-//#include "zlib.h"
 #include "gzstream/gzstream.h"
 
 #include <stdio.h>
@@ -43,15 +44,9 @@ unsigned long int scoresComputed = 0;
 
 Params params;
 
-void error_exit(string message)
-{
-	cerr << message << endl;
-	exit(EXIT_FAILURE);
-}
-
 istream* open_map_file(string fileName)
 {
-	string errorMsg = "ERROR: Reference map file " + fileName + " could not be opened";
+	string errorMsg = "Reference map file " + fileName + " could not be opened";
 	istream *ifs;
 	if (strings::ends_with(fileName, ".gz"))
 	{
@@ -166,9 +161,15 @@ void clean_dp_matrix(DpMatrixCell ** matrix, int height, int width )
 			matrix[ixRow][ixCol].flush();
 }
 
-int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
+inline SCORE_TYPE transform_prob(SCORE_TYPE p)
+{	
+	if (p == 0) return SUB_MAX;
+	SCORE_TYPE aux = -log(p);
+	return (aux > SUB_MAX) ? SUB_MAX : aux;
+}
+
+SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
 {
-	//cout << ir.start_position << " " << ir.end_position << endl;
 	if (ir.start_position == -1) ir.start_position = 1;
 	else ir.start_position++; //the start position is 0-based but here we have to account for the first zero coumn in the DP matrix
 	if (ir.end_position == -1) ir.end_position = reference.size();
@@ -178,9 +179,9 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 	//that the resulting mapping will capture the whole fragemnt
 	//we don't use max values because that might cause overflow
 	//since we add to these values
-	for (int ixRow = 1; ixRow <= fragment.size(); matrix[ixRow++][ir.start_position - 1].value = numeric_limits<int>::max() / 1000);
+	for (int ixRow = 1; ixRow <= fragment.size(); matrix[ixRow++][ir.start_position - 1].value = SUB_MAX);
 
-	int minMappingValue = numeric_limits<int>::max();
+	SCORE_TYPE minMappingValue = numeric_limits<SCORE_TYPE>::max();
 
 	for (int ixRow = 1; ixRow < fragment.size() + 1; ++ixRow)
 	{
@@ -195,7 +196,7 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 		{
 			//matrix[ixRow][ixCol].value = matrix[ixRow - 1][ixCol - 1].value + abs(fragment[ixRow - 1] - reference[ixCol - 1]);
 			DpMatrixCell minCell;
-			minCell.value = numeric_limits<int>::max();
+			minCell.value = numeric_limits<SCORE_TYPE>::max();
 
 			int rowValue = 0;
 			for (int ixWindowRow = 1; ixWindowRow <= params.mapDpWindowSize; ++ixWindowRow)
@@ -204,17 +205,44 @@ int dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RM
 				int ixFrag = ixRow - ixWindowRow;
 				//ends of fragments can be aligned with zero score since
 				//the molecules forming fragments were not created with a restriction enzyme
-				if (ixFrag > 0 && ixFrag < fragment.size()-1) 
+				//if (ixFrag > 0 && ixFrag < fragment.size()-1) 
 					rowValue += fragment[ixFrag]; 
 				int colValue = 0;
 				for (int ixWindowCol = 1; ixWindowCol <= params.mapDpWindowSize; ++ixWindowCol)
 				{
 					if (ixCol - ixWindowCol < ir.start_position - 1) break; //should I touch position out of the candidate window
 					colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
-					int score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + abs(rowValue - colValue);
+					//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);
+
+					//if (ixFrag > 0 && ixFrag < fragment.size() - 1) rowValue = colValue; //if the aligned segment includes first fragment from the experimental map,
+																						//we have to treat exp and reference segments as having equal lengths since we do not know
+																						//the real length of the first experimental fragment. 
+																						//(molecules were not created by the same restriction enzyme as the interior cleavage sites)
+										
+					SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
+					if (score >= SUB_MAX) continue;
+					float stddev = params.sizingErrorStddev * (colValue > params.smallFragmentThreshold ? colValue : params.smallFragmentThreshold);
+
+					float x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
+					score += stats::transform_prob(x);
 
 					//penalty computation
-					score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
+					//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
+					SCORE_TYPE auxP;
+					if (params.mapDpWindowSize == 1) auxP = 1;
+					else 
+					{
+						if (ixWindowCol > 1) auxP = pow(params.missRestrictionProb, ixWindowCol - 1);
+						else auxP = params.noMissRestrictionProb;
+					}
+					score += stats::transform_prob(auxP);
+
+
+					//x = stats::pdf_poisson(ixWindowRow - 1, rowValue * params.falseCutProb);
+					// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
+					// we can provide only the rowValue and use it as index to the array with precomputed values.
+					x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
+					score += stats::transform_prob(x);
 
 					//cout << ixRow - ixWindowRow << ";" << ixCol - ixWindowCol << endl;
 					scoresComputed++;
@@ -239,7 +267,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 {
 	Mappings mappings;
 
-	vector<pair<int, int>> minPositions; //top K min values and positions in increasing order
+	vector<pair<SCORE_TYPE, int>> minPositions; //top K min values and positions in increasing order
 	if (ir.start_position == -1) ir.start_position = 1;
 	else ir.start_position++;
 	if (ir.end_position == -1) ir.end_position = width - 1;
@@ -247,7 +275,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 
 	for (int ixM = ir.start_position; ixM <= ir.end_position; ++ixM)
 	{
-		int alignmentScore = matrix[height - 1][ixM].value;
+		SCORE_TYPE alignmentScore = matrix[height - 1][ixM].value;
 		if (minPositions.size() == 0) minPositions.push_back(make_pair(alignmentScore, ixM));
 		else if (minPositions.size() < params.topK || (minPositions.end() - 1)->first > alignmentScore)
 		{
@@ -265,9 +293,8 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, IndexRecord 
 	//we start at index height since we are interested only in diagonals of length at least "height"
 	for (int ix = 0; ix < minPositions.size(); ix++)
 	{
-		pair<int, int> match = minPositions[ix];
+		pair<SCORE_TYPE, int> match = minPositions[ix];
 		OmRmPath diagonal;
-		//for (int ixDiagonal = height - 2; ixDiagonal >= 0; --ixDiagonal) diagonal.push_back(make_pair<int, int>(height - 2 - ixDiagonal, pos - 1 - ixDiagonal));
 
 		int ixRow = height - 1, ixCol = match.second;
 		while (ixRow >= 1 && ixCol >= ir.start_position)
@@ -318,7 +345,7 @@ Mappings do_mapping(vector<int> &fragment, std::vector<RMRead> &refMap, vector<I
 			}
 		} mapLess;
 		sort(matchSequences.begin(), matchSequences.end(), mapLess);
-		matchSequences.erase(matchSequences.begin() + params.topK, matchSequences.end());
+		if (params.topK < matchSequences.size()) matchSequences.erase(matchSequences.begin() + params.topK, matchSequences.end());
 
 		//reverse the fragment back
 		std::reverse(fragment.begin(), fragment.end());
@@ -389,7 +416,6 @@ void verify_candidates(Fragment &optMap, vector<int> &refMap, vector<IndexRecord
 		ss << "rf: " << rmSize << ",  "; logger.Log(Logger::STDOUT, ss);
 		ss << "diff: " << abs(omSize - rmSize) << endl; logger.Log(Logger::STDOUT, ss);
 	}
-
 }
 
 
@@ -410,7 +436,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 
 		Mappings mappings;
 		for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
-		{
+		{	
 			//resultSet[ixOM] = do_mapping(optMap[ixOM].reads, refMap.second, candidates);
 			Mappings aux_mapping = do_mapping(optMap[ixOM].reads, refMap->second, candidates);
 			for (Mappings::iterator itAux = aux_mapping.begin(); itAux != aux_mapping.end(); ++itAux)
@@ -418,7 +444,7 @@ void map_segment(int from, int to, vector<Fragment> &optMap, RefMaps &refMaps, M
 				itAux->chromosome = refMap->first;
 				itAux->ComputeQuality();
 			}
-			mappings.insert(mappings.end(), aux_mapping.begin(), aux_mapping.end());
+			mappings.insert(mappings.end(), aux_mapping.begin(), aux_mapping.end());			
 		}
 
 		//keep top params.topK mappings
@@ -464,9 +490,16 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
 		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each optical map", false, 1, "int");
 		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
-		TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
-		TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
-		TCLAP::ValueArg<int> dpwindowsize("", "dpwindowsize", "Size of the dynamic programming window, i.e. how many restriction sites can be missed", false, 2, "int");
+		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
+		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
+		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 10).", false, 3, "int");		
+		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment \
+																	of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
+		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. \
+																					Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
+		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
+		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by \
+															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
@@ -477,9 +510,13 @@ void ParseCmdLine(int argc, char** argv)
 		cmd.add(cntThreadsArg);
 		cmd.add(topK);
 		cmd.add(chromosome);
-		cmd.add(omMissed);
-		cmd.add(rmMissed);
+		//cmd.add(omMissed);
+		//cmd.add(rmMissed);
 		cmd.add(dpwindowsize);
+		cmd.add(sizingErrorStddev);
+		cmd.add(smallFragmentThreshold);
+		cmd.add(digEff);
+		cmd.add(falseCutProb);
 
 		cmd.parse(argc, argv);
 
@@ -492,16 +529,21 @@ void ParseCmdLine(int argc, char** argv)
 		params.cntThreads = cntThreadsArg.getValue();
 		params.topK = topK.getValue();
 		params.chromosome = chromosome.getValue();
-		params.mapOmMissedPenalty = omMissed.getValue();
-		params.mapRmMissedPenalty = rmMissed.getValue();
+		//params.mapOmMissedPenalty = omMissed.getValue();
+		//params.mapRmMissedPenalty = rmMissed.getValue();
 		params.mapDpWindowSize = dpwindowsize.getValue();
+		params.sizingErrorStddev = sizingErrorStddev.getValue();
+		params.smallFragmentThreshold = smallFragmentThreshold.getValue();
+		params.missRestrictionProb = 1 - digEff.getValue();
+		params.noMissRestrictionProb =  1 - ((1 - pow(params.missRestrictionProb, params.mapDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
+		params.falseCutProb = falseCutProb.getValue();
 
+		if (params.mapDpWindowSize > MAX_OPT_MAP_WINDOW) error_exit("The maximum number of the miss-cnt parameter is 10.");
 	}
 	catch (TCLAP::ArgException &e)  // catch any exceptions
 	{
-		std::cerr << "error: " << e.error() << " for arg " << e.argId() << std::endl;
-
-		exit(EXIT_FAILURE);
+		ss << e.error() << " for arg " << e.argId() << std::endl;
+		error_exit(ss.str());
 	}
 }
 
@@ -653,7 +695,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				while (ixOMAux <= mappings[ixMappings].alignment[ixAlignment].first)
 				{
 					int length = optMap[ixOM].reads[ixOMAux - 1];
-					if (cntOM > 0 && ixOMAux < mappings[ixMappings].alignment[ixAlignment].first) sumOM += length; //ends of mapping are scored 0
+					//if (cntOM > 0 && ixOMAux < mappings[ixMappings].alignment[ixAlignment].first) 
+					sumOM += length; //ends of mapping are scored 0
 					ssOmIxs << " " << ixOMAux - 1;
 					if (cntOM > 0) ssOmLengths << ",";
 					ssOmLengths << length;
@@ -664,7 +707,8 @@ void SerializeMappings(Mappings *omMappings, vector<Fragment> &optMap, RefMaps &
 				while (ixRMAux <= mappings[ixMappings].alignment[ixAlignment].second)
 				{
 					int length = refMaps[chr][ixRMAux - 1].length;
-					if (cntRM > 0 && ixOMAux < mappings[ixMappings].alignment[ixAlignment].second) sumRM += length; //ends of mapping are scored 0
+					//if (cntRM > 0 && ixRMAux < mappings[ixMappings].alignment[ixAlignment].second) 
+					sumRM += length; //ends of mapping are scored 0
 					ssRmPos << " " << refMaps[chr][ixRMAux - 1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
 					if (cntRM > 0) ssRmLengths << ",";
 					ssRmLengths << length;
@@ -716,9 +760,11 @@ int main(int argc, char** argv)
 	map<int, vector<IndexRecord> > index;
 
 	ParseCmdLine(argc, argv);
+	stats::init_stats(params.falseCutProb);
 	InitLogging();
 	Parse(optMap, refMaps);
 	//InitializeIndex(index, refMap);	
+	
 	Mappings *omMatches = AlignOpticalMaps(optMap, refMaps, index);
 	SerializeMappings(omMatches, optMap, refMaps);
 	delete[] omMatches;
