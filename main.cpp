@@ -168,7 +168,7 @@ inline SCORE_TYPE transform_prob(SCORE_TYPE p)
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
 }
 
-void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
+void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, IndexRecord ir = IndexRecord())
 {
 	if (ir.start_position == -1) ir.start_position = 1;
 	else ir.start_position++; //the start position is 0-based but here we have to account for the first zero coumn in the DP matrix
@@ -179,13 +179,13 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<R
 	//that the resulting mapping will capture the whole fragemnt
 	//we don't use max values because that might cause overflow
 	//since we add to these values
-	for (int ixRow = 1; ixRow <= fragment.size(); matrix[ixRow++][ir.start_position - 1].value = SUB_MAX);
+	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][ir.start_position - 1].value = SUB_MAX);
 
 	SCORE_TYPE minMappingValue = numeric_limits<SCORE_TYPE>::max();
 
-	for (int ixRow = 1; ixRow < fragment.size() + 1; ++ixRow)
+	for (int ixRow = 1; ixRow < experiment.size() + 1; ++ixRow)
 	{
-		bool isLastRow = ixRow == fragment.size() ? true : false;
+		bool isLastRow = ixRow == experiment.size() ? true : false;
 
 		//we need to find the first column in the last row where it makes sense to search for mins
 		//for example the first column does not make sense since that would mean the whole OM fragment was
@@ -201,17 +201,23 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &fragment, std::vector<R
 			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
 
 			//First and last fragments are scored 0
+			if (ixRow == 1 || isLastRow)
+			{
+				isLastRow ? minCell.value = matrix[ixRow - 1][ixCol - 1].value + stats::transform_prob(1) : minCell.value = stats::transform_prob(1);				
+				matrix[ixRow][ixCol] = minCell;
+				continue;
+			}
 			
 			
 			int rowValue = 0;
 			for (int ixWindowRow = 1; ixWindowRow <= params.mapDpWindowSize; ++ixWindowRow)
 			{
 				if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
-				int ixFrag = ixRow - ixWindowRow;
+				int ixExp = ixRow - ixWindowRow;
 				//ends of fragments can be aligned with zero score since
 				//the molecules forming fragments were not created with a restriction enzyme
 				//if (ixFrag > 0 && ixFrag < fragment.size()-1) 
-					rowValue += fragment[ixFrag]; 
+				rowValue += experiment[ixExp];
 				int colValue = 0;
 				for (int ixWindowCol = 1; ixWindowCol <= params.mapDpWindowSize; ++ixWindowCol)
 				{
