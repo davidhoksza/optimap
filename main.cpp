@@ -181,7 +181,6 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 	//since we add to these values
 	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][ir.start_position - 1].value = SUB_MAX);
 
-	int x = experiment[0];
 	SCORE_TYPE minMappingValue = numeric_limits<SCORE_TYPE>::max();
 
 	for (int ixRow = 1; ixRow < experiment.size() + 1; ++ixRow)
