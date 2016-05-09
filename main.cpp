@@ -181,6 +181,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 	//since we add to these values
 	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][ir.start_position - 1].value = SUB_MAX);
 
+	int x = experiment[0];
 	SCORE_TYPE minMappingValue = numeric_limits<SCORE_TYPE>::max();
 
 	for (int ixRow = 1; ixRow < experiment.size() + 1; ++ixRow)
@@ -234,7 +235,13 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 					if (score >= SUB_MAX) continue;
 					float stddev = params.sizingErrorStddev * (colValue > params.smallFragmentThreshold ? colValue : params.smallFragmentThreshold);
 
-					float x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
+					float x;
+					if (stddev == 0)
+					{
+						if (rowValue == colValue) x = 1;
+						else x = 0;
+					}
+					else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
 					score += stats::transform_prob(x);
 					if (score >= SUB_MAX) continue;
 
@@ -510,6 +517,8 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by \
 															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
+		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold \
+																		  will be merged with the neighbouring fragment", true, 1000, "int");
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
@@ -527,6 +536,7 @@ void ParseCmdLine(int argc, char** argv)
 		cmd.add(smallFragmentThreshold);
 		cmd.add(digEff);
 		cmd.add(falseCutProb);
+		cmd.add(smoothingThreshold);
 
 		cmd.parse(argc, argv);
 
@@ -541,12 +551,13 @@ void ParseCmdLine(int argc, char** argv)
 		params.chromosome = chromosome.getValue();
 		//params.mapOmMissedPenalty = omMissed.getValue();
 		//params.mapRmMissedPenalty = rmMissed.getValue();
-		params.mapDpWindowSize = dpwindowsize.getValue();
+		params.mapDpWindowSize = dpwindowsize.getValue() + 1;
 		params.sizingErrorStddev = sizingErrorStddev.getValue();
 		params.smallFragmentThreshold = smallFragmentThreshold.getValue();
 		params.missRestrictionProb = 1 - digEff.getValue();
 		params.noMissRestrictionProb =  1 - ((1 - pow(params.missRestrictionProb, params.mapDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
 		params.falseCutProb = falseCutProb.getValue();
+		params.smoothingThreshold = smoothingThreshold.getValue();
 
 		if (params.mapDpWindowSize > MAX_OPT_MAP_WINDOW) error_exit("The maximum number of the miss-cnt parameter is 10.");
 	}
@@ -557,20 +568,67 @@ void ParseCmdLine(int argc, char** argv)
 	}
 }
 
-void Parse(vector<Fragment> &optMap, RefMaps &refMaps)
+void SmoothRefFragments(RefMaps &refMaps)
+{
+	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++)
+	{
+		for (int ixFrag = it->second.size() - 1; ixFrag >= 0; ixFrag--)
+		{
+			//we will proceed from the end and join every short fragment to its preceeding fragment
+			if (it->second[ixFrag].length < params.smoothingThreshold && ixFrag > 0)
+			{
+				it->second[ixFrag-1].length += it->second[ixFrag].length;
+				it->second.erase(it->second.begin() + ixFrag);
+			}
+			//first fragment can be too short so it needs to be joined with its successor 
+			if (it->second[0].length < params.smoothingThreshold && it->second.size() > 1)
+			{
+				it->second[1].length += it->second[0].length;
+				it->second.erase(it->second.begin());
+			}
+		}
+	}
+}
+
+void SmoothExpFragments(vector<Fragment> &expMaps)
+{
+	for (vector<Fragment>::iterator it = expMaps.begin(); it != expMaps.end(); it++)
+	{
+		for (int ixFrag = it->reads.size() - 1; ixFrag >= 0; ixFrag--)
+		{
+			//we will proceed from the end and join every short fragment to its preceeding fragment
+			if (it->reads[ixFrag] < params.smoothingThreshold && ixFrag > 0)
+			{				
+				it->reads[ixFrag - 1] += it->reads[ixFrag];
+				it->reads.erase(it->reads.begin() + ixFrag);
+			}
+			//first fragment can be too short so it needs to be joined with its successor 
+			if (it->reads[0] < params.smoothingThreshold && it->reads.size() > 1)
+			{
+				it->reads[1] += it->reads[0];
+				it->reads.erase(it->reads.begin());
+			}
+		}
+	}
+}
+
+
+void Parse(vector<Fragment> &optMaps, RefMaps &refMaps)
 {
 	ss << "======= PARSE - START =======" << endl;
 	logger.Log(Logger::LOGFILE, ss);
 	clock_t begin_time = clock();
 	//vector<Fragment> optMap = parse_opt_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<Fragment> optMap = parse_opt_map("../ref.map.split", 100);
-	optMap = parse_opt_map(params.omFileName);
+	optMaps = parse_opt_map(params.omFileName);
 	refMaps = parse_ref_map(params.rmFileName); //vector<RMRead> refMap = parse_ref_map("../ref.map"/*, 100000*/);
+	SmoothExpFragments(optMaps);
+	SmoothRefFragments(refMaps);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
 	int sum = 0;
 	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++) sum += it->second.size();
 	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::LOGFILE, ss);
-	ss << "opt. map length: " << optMap.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
+	ss << "opt. maps length: " << optMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
 	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::LOGFILE, ss);
 	ss << "======= PARSE - END =======" << endl; logger.Log(Logger::LOGFILE, ss);
 }

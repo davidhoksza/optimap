@@ -72,7 +72,6 @@ struct Params {
 	int		ixOmEnd;
 	int		cntThreads;
 	int		topK;
-
 	//int		mapOmMissedPenalty;
 	//int		mapRmMissedPenalty;
 	int		mapDpWindowSize;
@@ -81,6 +80,7 @@ struct Params {
 	float	missRestrictionProb;
 	float	noMissRestrictionProb; // computed as 1 - ((1 - pow(params.missRestrictionProb, params.mapDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1)
 	float	falseCutProb;
+	int		smoothingThreshold;
 
 };
 

@@ -67,7 +67,12 @@ namespace stats {
 	}
 
 	inline SCORE_TYPE pdf_poisson(int n, int lambda_times_false_cut_p)
-	{
+	{		
+		if (lambda_times_false_cut_p > MAX_FRAGMENT_LENGTH) {
+			std::ostringstream ss;
+			ss << "Maximum fragment length currently set to " << MAX_FRAGMENT_LENGTH;
+			error_exit(ss.str());
+		}
 		return poisson_map[n][lambda_times_false_cut_p];
 	}
 
