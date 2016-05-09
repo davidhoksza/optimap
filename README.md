@@ -39,6 +39,8 @@ To algorithm seeks to identify alignment with biggest probability. If we had a r
  
 **Correct setting of the probability distributions parameters heavilly influences discovered alignments!**
 
+By default, optimap smoothes both reference and experimental maps, i.e. it marges fragments shorter than 1kb with their neighboring fragments. The threshold can be controled by the *smooth-threshold* parameter.
+
 Run
 
 ```
