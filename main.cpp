@@ -518,7 +518,7 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by \
 															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
 		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold \
-																		  will be merged with the neighbouring fragment", true, 1000, "int");
+																		  will be merged with the neighbouring fragment", false, 1000, "int");
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
@@ -579,13 +579,13 @@ void SmoothRefFragments(RefMaps &refMaps)
 			{
 				it->second[ixFrag-1].length += it->second[ixFrag].length;
 				it->second.erase(it->second.begin() + ixFrag);
-			}
-			//first fragment can be too short so it needs to be joined with its successor 
-			if (it->second[0].length < params.smoothingThreshold && it->second.size() > 1)
-			{
-				it->second[1].length += it->second[0].length;
-				it->second.erase(it->second.begin());
-			}
+			}			
+		}
+		//first fragment can be too short so it needs to be joined with its successor 
+		if (it->second[0].length < params.smoothingThreshold && it->second.size() > 1)
+		{
+			it->second[1].length += it->second[0].length;
+			it->second.erase(it->second.begin());
 		}
 	}
 }
@@ -601,13 +601,13 @@ void SmoothExpFragments(vector<Fragment> &expMaps)
 			{				
 				it->reads[ixFrag - 1] += it->reads[ixFrag];
 				it->reads.erase(it->reads.begin() + ixFrag);
-			}
-			//first fragment can be too short so it needs to be joined with its successor 
-			if (it->reads[0] < params.smoothingThreshold && it->reads.size() > 1)
-			{
-				it->reads[1] += it->reads[0];
-				it->reads.erase(it->reads.begin());
-			}
+			}			
+		}
+		//first fragment can be too short so it needs to be joined with its successor 
+		if (it->reads[0] < params.smoothingThreshold && it->reads.size() > 1)
+		{
+			it->reads[1] += it->reads[0];
+			it->reads.erase(it->reads.begin());
 		}
 	}
 }
