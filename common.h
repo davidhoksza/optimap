@@ -10,4 +10,5 @@ void error_exit(std::string message)
 	exit(EXIT_FAILURE);
 }
 
+
 #endif // TYPES_H

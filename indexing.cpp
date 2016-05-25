@@ -41,12 +41,12 @@ map<int, vector<IndexRecord> > init_index(RefMaps refMaps)
 	return index;
 }
 
-vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, const Fragment &optMapFragment, const int threshold)
+vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold)
 {
 	vector<IndexRecord> candidates;
 
-	map<int, vector<IndexRecord> >::iterator l = index.lower_bound(optMapFragment.length - threshold);
-	map<int, vector<IndexRecord> >::iterator u = index.upper_bound(optMapFragment.length + threshold);
+	map<int, vector<IndexRecord> >::iterator l = index.lower_bound(expMap.length - threshold);
+	map<int, vector<IndexRecord> >::iterator u = index.upper_bound(expMap.length + threshold);
 
 	while (l != u)
 	{
@@ -66,16 +66,16 @@ vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, 
 	return candidates;
 }
 
-void analyze(vector<Fragment> optMap, RefMaps refMaps)
+void analyze(vector<ExpMap> expMap, RefMaps refMaps)
 {
 	map<int, vector<IndexRecord> > refLengths = init_index(refMaps);
 
 	cout << "Frequencies of the fragments in the reference map:" << endl;
-	for (int ixOM = 0; ixOM < optMap.size(); ixOM++)
+	for (int ixOM = 0; ixOM < expMap.size(); ixOM++)
 	{
 		int cnt = 0;
-		map<int, vector<IndexRecord> >::iterator l = refLengths.lower_bound(optMap[ixOM].length - INDEX_NEIGHBORHOOD_THRESHOLD);
-		map<int, vector<IndexRecord> >::iterator u = refLengths.upper_bound(optMap[ixOM].length + INDEX_NEIGHBORHOOD_THRESHOLD);
+		map<int, vector<IndexRecord> >::iterator l = refLengths.lower_bound(expMap[ixOM].length - INDEX_NEIGHBORHOOD_THRESHOLD);
+		map<int, vector<IndexRecord> >::iterator u = refLengths.upper_bound(expMap[ixOM].length + INDEX_NEIGHBORHOOD_THRESHOLD);
 		while (l != u)
 		{
 			cnt += l->second.size();

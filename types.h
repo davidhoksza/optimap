@@ -12,21 +12,23 @@
 #include <limits>
 #include <map>
 
+#include "constants.h"
+
 struct DpMatrixCell {
 	float value;
 	int sourceRow, sourceColumn;
 
-	DpMatrixCell() : value(0), sourceRow(-1), sourceColumn(-1) {};
-	void flush() { value = 0; sourceRow = -1; sourceColumn = -1; };
+	DpMatrixCell() : value(SUB_MAX), sourceRow(-1), sourceColumn(-1) {};
+	void flush() { value = SUB_MAX; sourceRow = -1; sourceColumn = -1; };
 };
 
-struct Fragment {
+struct ExpMap {
 	int							length;
 	std::vector<int>			reads;
 	std::vector<std::string>	debugInfo;
 	std::string					name;
 
-	Fragment() : length(0) {};
+	ExpMap() : length(0) {};
 };
 
 struct RMRead {
@@ -50,16 +52,18 @@ typedef float SCORE_TYPE;
 
 struct Mapping {		
 	OmRmPath	alignment;
+	std::vector<SCORE_TYPE> scores;
 	SCORE_TYPE	score;		//score from the dp
 	float		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
 	std::string chromosome; 
 	bool		reversed = false;
 
-	Mapping(float _score, OmRmPath _alignment) : alignment(_alignment), score(_score) {};
+	Mapping(float _score, std::vector<SCORE_TYPE> _scores, OmRmPath _alignment) : alignment(_alignment), score(_score), scores(_scores) {};
 	void ComputeQuality() {
 		quality = score;
 	}
 };
+
 typedef std::vector<Mapping> Mappings;
 
 struct Params {
@@ -74,11 +78,11 @@ struct Params {
 	int		topK;
 	//int		mapOmMissedPenalty;
 	//int		mapRmMissedPenalty;
-	int		mapDpWindowSize;
+	int		maxDpWindowSize;
 	float	sizingErrorStddev;
 	int		smallFragmentThreshold;
 	float	missRestrictionProb;
-	float	noMissRestrictionProb; // computed as 1 - ((1 - pow(params.missRestrictionProb, params.mapDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1)
+	float	noMissRestrictionProb; // computed as 1 - ((1 - pow(params.missRestrictionProb, params.maxDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1)
 	float	falseCutProb;
 	int		smoothingThreshold;
 

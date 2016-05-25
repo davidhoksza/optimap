@@ -12,14 +12,14 @@
 #include "constants.h"
 #include "common.h"
 
-const double PI = 3.141592653589793;
-const double E = std::exp(1.0);
-const float inv_sqrt_2pi = 0.3989422804014327;
-const int max__reasonable_stddev = 20;
-
-#define M
 
 namespace stats {
+
+	const double PI = 3.141592653589793;
+	const double E = std::exp(1.0);
+	const float inv_sqrt_2pi = 0.3989422804014327;
+	const int max__reasonable_stddev = 20;
+
 
 	SCORE_TYPE log_tab[CNT_PROB_BINS + 1];
 	SCORE_TYPE gaussian_map[(2 * max__reasonable_stddev) * CNT_PROB_BINS + 1];
@@ -57,17 +57,14 @@ namespace stats {
 		return  inv_sqrt_2pi / stddev * exp(-0.5f * a * a);
 	}
 
-	float pdf_gaussian(float x, float mean, float stddev)
+	inline float pdf_gaussian(float x, float mean, float stddev)
 	{
 		if (x < -max__reasonable_stddev || x > max__reasonable_stddev) return 0;
-		else{
-			float a = gaussian_map[(int)(x * CNT_PROB_BINS + CNT_PROB_BINS * max__reasonable_stddev)];
-			return a;
-		}
+		else return gaussian_map[(int)(x * CNT_PROB_BINS) + CNT_PROB_BINS * max__reasonable_stddev]; //+ CNT_PROB_BINS * max__reasonable_stddev -> index starts from 0
 	}
 
 	inline SCORE_TYPE pdf_poisson(int n, int lambda_times_false_cut_p)
-	{		
+	{	
 		if (lambda_times_false_cut_p > MAX_FRAGMENT_LENGTH) {
 			std::ostringstream ss;
 			ss << "Maximum fragment length currently set to " << MAX_FRAGMENT_LENGTH;

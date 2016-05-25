@@ -18,8 +18,8 @@ struct IndexRecord {
 	IndexRecord(int sp, int ep, int l) : start_position(sp), end_position(sp), length(l) {};
 };
 
-void analyze(std::vector<Fragment> optMap, std::vector<RMRead> refMap);
+void analyze(std::vector<ExpMap> expMap, std::vector<RMRead> refMap);
 std::map<int, std::vector<IndexRecord> > init_index(RefMaps refMaps);
-std::vector<IndexRecord> index_get_candidates(std::map<int, std::vector<IndexRecord> > &index, const Fragment &optMapFragment, const int threshold = INDEX_NEIGHBORHOOD_THRESHOLD);
+std::vector<IndexRecord> index_get_candidates(std::map<int, std::vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold = INDEX_NEIGHBORHOOD_THRESHOLD);
 
 #endif // INDEXING_H
