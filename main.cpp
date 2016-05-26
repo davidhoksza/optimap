@@ -166,7 +166,7 @@ inline SCORE_TYPE transform_prob(SCORE_TYPE p)
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
 }
 
-SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar)
+void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar)
 {
 	//first, let's initiliaze the first column with submax values which ensures 
 	//that the resulting mapping will capture the whole fragemnt
@@ -175,7 +175,7 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][0].value = SUB_MAX);
 
 	//and first row by 0 so that the alignment can't start anywhere in the reference
-	for (int ixCol = 0; ixCol <= reference.size(); matrix[0][ixCol++].value = 0);
+	for (int ixCol = 0; ixCol <= reference.size(); matrix[0][ixCol++].value = stats::transform_prob(1));
 
 	for (int ixRow = 1; ixRow < experiment.size() + 1; ++ixRow)
 	{
@@ -191,7 +191,7 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 			//First and last fragments are scored 0
 			if (ixRow == 1 || isLastRow)
 			{
-				isLastRow ? minCell.value = matrix[ixRow - 1][ixCol - 1].value + stats::transform_prob(1) : minCell.value = stats::transform_prob(1);							
+				isLastRow ? minCell.value = matrix[ixRow - 1][ixCol - 1].value + stats::transform_prob(1) : minCell.value = stats::transform_prob(1);
 			}
 			else
 			{
@@ -214,10 +214,11 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 					{
 						if (ixCol - ixWindowCol < 0) break; //should I touch position out of the candidate window
 						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
-						if (score >= minScoresSoFar[0]) continue;
+						//if (score >= minScoresSoFar[0]) continue;
 
 						colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
-						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);						
+						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);	
+						
 						
 						float stddev = params.sizingErrorStddev * (rowValue > params.smallFragmentThreshold ? rowValue : params.smallFragmentThreshold);
 
@@ -227,10 +228,16 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 							if (rowValue == colValue) x = 1;
 							else x = 0;
 						}
-						else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
+						//else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
+						else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);
+
+						/*if (rowValue == 4518 && colValue == (3149 + 17070 + 1554))
+						{
+							cout << stddev << endl << x << endl << stats::transform_prob(x) << endl;							
+						}*/
 						
 						score += stats::transform_prob(x);
-						if (score >= minScoresSoFar[0]) continue;
+						//if (score >= minScoresSoFar[0]) continue;
 
 						//penalty computation
 						//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
@@ -244,11 +251,16 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 						score += stats::transform_prob(auxP);
 
 
-						//x = stats::pdf_poisson_full(ixWindowRow - 1, rowValue * params.falseCutProb);
+						x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
 						// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
 						// we can provide only the rowValue and use it as index to the array with precomputed values.
-						x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
+						//x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
 						score += stats::transform_prob(x);
+
+						/*if (rowValue == 4518 && colValue == (3149 + 17070 + 1554))
+						{
+							cout << "final: " << score << "" << endl;							
+						}*/
 
 						scoresComputed++;
 						if (score < minCell.value)
@@ -261,13 +273,13 @@ SCORE_TYPE dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::
 				}
 			}			
 			matrix[ixRow][ixCol] = minCell;
-			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
-			{
-				minScoresSoFar.erase(minScoresSoFar.begin());
-				minScoresSoFar.push_back(minCell.value);
-				sort(minScoresSoFar.begin(), minScoresSoFar.end(), std::greater<SCORE_TYPE>());
-				//for (auto &s : minScoresSoFar) cout << s << " "; cout << endl;
-			}
+			//if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
+			//{
+			//	minScoresSoFar.erase(minScoresSoFar.begin());
+			//	minScoresSoFar.push_back(minCell.value);
+			//	sort(minScoresSoFar.begin(), minScoresSoFar.end(), std::greater<SCORE_TYPE>());
+			//	//for (auto &s : minScoresSoFar) cout << s << " "; cout << endl;
+			//}
 		}
 	}
 }
@@ -684,7 +696,7 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 
 				ss << ixOMAux + 1 << " - " << ixRMAux + 1 << " (" << sumOM << " - " << sumRM << ") "; logger.Log(Logger::LOGFILE, ss);
 				ssAln << sumRM - sumOM << "," << cntRM << ":" << cntOM << "," << sumRM;// << sumOM << " ";
-				ssAlnDetail << strings::trim(ssRmLengths.str()) << ":" << strings::trim(ssOmLengths.str());// << ":" << mappings[ixMappings].scores[ixAlignment];
+				ssAlnDetail << strings::trim(ssRmLengths.str()) << ":" << strings::trim(ssOmLengths.str());// << ":" << mappings[ixMappings].scores[ixAlignment - 1];
 			}
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
 			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);

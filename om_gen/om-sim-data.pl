@@ -37,7 +37,7 @@ sub parse_params
         dgst_rate  => 0.8,     # fraction of sites digested
         brk_rate   => 1e-5,    # random breaks for the Poisson process, rare event
         min_nsites => 12,      # minimum number of fragments per molecule
-        min_mlen   => 200,     # minimum molecule length [kb]
+        min_mlen   => 50,     # minimum molecule length [kb]
         max_mlen   => 250,     # maximum molecule length [kb]
         map_fname  => 'ref.map.gz', # reference map
     };
@@ -60,7 +60,7 @@ sub next_break
 
 sub sim_data
 {
-	srand(1);
+	#srand(1);
     my ($opts) = @_;
     my $brk_at = next_break($$opts{brk_rate});
     open(my $fh,"gunzip -c $$opts{map_fname} |") or error("$$opts{map_fname}: $!");
