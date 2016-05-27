@@ -23,12 +23,21 @@ struct DpMatrixCell {
 };
 
 struct ExpMap {
-	int							length;
+	int							length = 0;
 	std::vector<int>			reads;
+	std::vector<float>			qx11; //bionano qualities for each label (restriction site)
+	std::vector<float>			qx12; //bionano noise-to-signal ratios for each label (restriction site)
 	std::vector<std::string>	debugInfo;
 	std::string					name;
 
-	ExpMap() : length(0) {};
+	void Clear() {
+		length = 0;
+		reads.clear();
+		debugInfo.clear();
+		qx11.clear();
+		qx12.clear();
+		name = "";
+	}
 };
 
 struct RMRead {
@@ -68,6 +77,7 @@ typedef std::vector<Mapping> Mappings;
 
 struct Params {
 	std::string	omFileName;
+	std::string	omFormat;
 	std::string	rmFileName;
 	std::string	outFileName;
 	std::string	logFileName;

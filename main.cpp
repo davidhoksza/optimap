@@ -96,56 +96,91 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 	vector<string> cleavageSites;
 
 	string fragName;
+	ExpMap f;
 	for (std::string line; getline(*ifs, line);)
 	{
-		if (line.find("debug") != string::npos)
+		if (params.omFormat == "opgen")
 		{
-			stringstream ss(line); // Insert the string into a stream
-			string strBuffer;
-			ss >> strBuffer;
-			while (ss >> strBuffer) cleavageSites.push_back(strBuffer);
-		}
-
-		if (line.find("KpnI") != string::npos)
-		{
-			ExpMap f;
-			f.name = fragName;
-
-			int pos = -1;
-
-			for (string::const_iterator it = line.begin(), end = line.end(); it != end; ++it)
+			if (line.find("debug") != string::npos)
 			{
-				pos++;
-				if (*it == '\t')
+				stringstream ss(line); // Insert the string into a stream
+				string strBuffer;
+				ss >> strBuffer;
+				while (ss >> strBuffer) cleavageSites.push_back(strBuffer);
+			}
+
+			if (line.find("KpnI") != string::npos)
+			{			
+				f.Clear();
+				f.name = fragName;
+
+				int pos = -1;
+
+				for (string::const_iterator it = line.begin(), end = line.end(); it != end; ++it)
 				{
-					buffer[pos] = 0;
-					if (buffer[0] != 'K' && pos > 0) {
-						int aux = 1000 * atof(buffer);
-						f.reads.push_back(aux);
-						f.length += aux;
+					pos++;
+					if (*it == '\t')
+					{
+						buffer[pos] = 0;
+						if (buffer[0] != 'K' && pos > 0) {
+							int aux = 1000 * atof(buffer);
+							f.reads.push_back(aux);
+							f.length += aux;
+						}
+						pos = -1;
 					}
-					pos = -1;
+					else buffer[pos] = *it;
 				}
-				else buffer[pos] = *it;
-			}
-			if (pos >= 0)
-			{
-				buffer[pos + 1] = 0;
-				int aux = 1000 * atof(buffer);
-				f.reads.push_back(aux);
-				f.length += aux;
-			}
+				if (pos >= 0)
+				{
+					buffer[pos + 1] = 0;
+					int aux = 1000 * atof(buffer);
+					f.reads.push_back(aux);
+					f.length += aux;
+				}
 
-			if (cleavageSites.size() > 0)
-			{
-				assert(cleavageSites.size() - 2 == f.reads.size()); // debug info includes chromosome and first and last position -> +2
-				f.debugInfo = cleavageSites;
-				cleavageSites.clear();
+				if (cleavageSites.size() > 0)
+				{
+					assert(cleavageSites.size() - 2 == f.reads.size()); // debug info includes chromosome and first and last position -> +2
+					f.debugInfo = cleavageSites;
+					cleavageSites.clear();
+				}
+				expMap.push_back(f);
+				if (expMap.size() >= topN) break;
 			}
-			expMap.push_back(f);
-			if (expMap.size() >= topN) break;
+			else fragName = strings::trim(line);
 		}
-		else fragName = strings::trim(line);
+		if (params.omFormat == "bionano")
+		{
+			vector<string> sLine = strings::split(line, "\t");
+
+			if (sLine[0] == "0")
+			{
+				f.Clear();
+				ss << sLine[1] << "_" << sLine[2];
+				f.name = ss.str(); ss.str(string());				
+			}
+			if (sLine[0] == "1")
+			{
+				f.reads.push_back(strings::toFloat(sLine[0]));
+				int s = sLine.size();
+				for (int ix = 2; ix < s; ix++)
+				{
+					f.reads.push_back(strings::toInt(sLine[ix]) - strings::toInt(sLine[ix - 1]));
+				}
+				f.length = strings::toFloat(sLine[s - 1]);
+			}
+			if (sLine[0] == "QX11")
+			{
+				for (int ix = 1; ix < sLine.size(); f.qx11.push_back(strings::toFloat(sLine[ix++])));
+			}
+			if (sLine[0] == "QX12")
+			{
+				for (int ix = 1; ix < sLine.size(); f.qx12.push_back(strings::toFloat(sLine[ix++])));
+				expMap.push_back(f);
+				if (expMap.size() >= topN) break;
+			}
+		}
 	}
 
 	delete ifs;
@@ -218,10 +253,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);	
 
 						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
-						bool pass1 = true;
 						if (score >= minScoresSoFar[0]) continue;
-						//pass1 = false;
-
 
 						float stddev = params.sizingErrorStddev * (rowValue > params.smallFragmentThreshold ? rowValue : params.smallFragmentThreshold);
 
@@ -232,9 +264,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 							else x = 0;
 						}
 						else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
-						//else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);
-
-						
+						//else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);						
 						
 						score += stats::transform_prob(x);
 						if (score >= minScoresSoFar[0]) continue;
@@ -249,7 +279,6 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 							else auxP = params.noMissRestrictionProb;
 						}
 						score += stats::transform_prob(auxP);
-
 
 						//x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
 						// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
@@ -419,81 +448,6 @@ void InitLogging()
 	if (params.outFileName != "") logger.InitChannel(Logger::RESFILE, params.outFileName);
 }
 
-void ParseCmdLine(int argc, char** argv)
-{
-	try
-	{
-		TCLAP::CmdLine cmd("Optical mapping", ' ', "0.8");
-		TCLAP::ValueArg<std::string> omFileNameArg("o", "expmap", "Experimental optical maps file (either plain text or gzipped)", true, "", "filename");
-		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file (either plain text or gzipped)", true, "", "filename");
-		TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file (if not present, the standard output will be used)", false, "", "filename");
-		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
-		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
-		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
-		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
-		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each experimental map", false, 1, "int");
-		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
-		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
-		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
-		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");
-		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment \
-																		  																	of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
-		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. \
-																																										Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
-		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
-		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by \
-															   															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
-		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold \
-																		  																		  will be merged with the neighbouring fragment", false, 1000, "int");
-
-		cmd.add(omFileNameArg);
-		cmd.add(rmFileNameArg);
-		cmd.add(outFileNameArg);
-		cmd.add(logFileNameArg);
-		cmd.add(ixStartArg);
-		cmd.add(ixEndArg);
-		cmd.add(cntThreadsArg);
-		cmd.add(topK);
-		cmd.add(chromosome);
-		//cmd.add(omMissed);
-		//cmd.add(rmMissed);
-		cmd.add(dpwindowsize);
-		cmd.add(sizingErrorStddev);
-		cmd.add(smallFragmentThreshold);
-		cmd.add(digEff);
-		cmd.add(falseCutProb);
-		cmd.add(smoothingThreshold);
-
-		cmd.parse(argc, argv);
-
-		params.omFileName = omFileNameArg.getValue();
-		params.rmFileName = rmFileNameArg.getValue();
-		params.outFileName = outFileNameArg.getValue();
-		params.logFileName = logFileNameArg.getValue();
-		params.ixOmStart = ixStartArg.getValue();
-		params.ixOmEnd = ixEndArg.getValue();
-		params.cntThreads = cntThreadsArg.getValue();
-		params.topK = topK.getValue();
-		params.chromosome = chromosome.getValue();
-		//params.mapOmMissedPenalty = omMissed.getValue();
-		//params.mapRmMissedPenalty = rmMissed.getValue();
-		params.maxDpWindowSize = dpwindowsize.getValue() + 1;
-		params.sizingErrorStddev = sizingErrorStddev.getValue();
-		params.smallFragmentThreshold = smallFragmentThreshold.getValue();
-		params.missRestrictionProb = 1 - digEff.getValue();
-		params.noMissRestrictionProb = 1 - ((1 - pow(params.missRestrictionProb, params.maxDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
-		params.falseCutProb = falseCutProb.getValue();
-		params.smoothingThreshold = smoothingThreshold.getValue();
-
-		if (params.maxDpWindowSize > MAX_OPT_MAP_WINDOW) error_exit("The maximum number of the miss-cnt parameter is 10.");
-	}
-	catch (TCLAP::ArgException &e)  // catch any exceptions
-	{
-		ss << e.error() << " for arg " << e.argId() << std::endl;
-		error_exit(ss.str());
-	}
-}
-
 void SmoothRefFragments(RefMaps &refMaps)
 {
 	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++)
@@ -547,7 +501,7 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
 	expMaps = parse_exp_map(params.omFileName);
-	refMaps = parse_ref_map(params.rmFileName); //vector<RMRead> refMap = parse_ref_map("../ref.map"/*, 100000*/);
+	refMaps = parse_ref_map(params.rmFileName);
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
@@ -704,16 +658,102 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 
 }
 
+void ParseCmdLine(int argc, char** argv)
+{
+	try
+	{
+		TCLAP::CmdLine cmd("Optical mapping", ' ', "0.8");
+		TCLAP::ValueArg<std::string> omFileNameArg("o", "expmap", "Experimental optical maps file (either plain text or gzipped)", true, "", "filename");
+		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file (either plain text or gzipped)", true, "", "filename");
+		ss.str(std::string());  ss << "Format of experiment file. Supported formats: [" << EXPERIMENT_FORMAT_TYPES << "]";
+		TCLAP::ValueArg<std::string> formatArg("", "expformat", ss.str(), false, "opgen", "string");
+		ss.str(std::string());
+		TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file (if not present, the standard output will be used)", false, "", "filename");
+		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
+		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
+		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
+		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
+		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each experimental map", false, 1, "int");
+		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
+		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
+		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
+		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");
+		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment  of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
+		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
+		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
+		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
+		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold will be merged with the neighbouring fragment", false, 1000, "int");
+
+		cmd.add(omFileNameArg);
+		cmd.add(formatArg);
+		cmd.add(rmFileNameArg);
+		cmd.add(outFileNameArg);
+		cmd.add(logFileNameArg);
+		cmd.add(ixStartArg);
+		cmd.add(ixEndArg);
+		cmd.add(cntThreadsArg);
+		cmd.add(topK);
+		cmd.add(chromosome);
+		//cmd.add(omMissed);
+		//cmd.add(rmMissed);
+		cmd.add(dpwindowsize);
+		cmd.add(sizingErrorStddev);
+		cmd.add(smallFragmentThreshold);
+		cmd.add(digEff);
+		cmd.add(falseCutProb);
+		cmd.add(smoothingThreshold);
+
+		cmd.parse(argc, argv);
+
+		params.omFileName = omFileNameArg.getValue();
+		params.rmFileName = rmFileNameArg.getValue();
+		params.omFormat = strings::lower(formatArg.getValue());
+		params.outFileName = outFileNameArg.getValue();
+		params.logFileName = logFileNameArg.getValue();
+		params.ixOmStart = ixStartArg.getValue();
+		params.ixOmEnd = ixEndArg.getValue();
+		params.cntThreads = cntThreadsArg.getValue();
+		params.topK = topK.getValue();
+		params.chromosome = chromosome.getValue();
+		//params.mapOmMissedPenalty = omMissed.getValue();
+		//params.mapRmMissedPenalty = rmMissed.getValue();
+		params.maxDpWindowSize = dpwindowsize.getValue() + 1;
+		params.sizingErrorStddev = sizingErrorStddev.getValue();
+		params.smallFragmentThreshold = smallFragmentThreshold.getValue();
+		params.missRestrictionProb = 1 - digEff.getValue();
+		params.noMissRestrictionProb = 1 - ((1 - pow(params.missRestrictionProb, params.maxDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
+		params.falseCutProb = falseCutProb.getValue();
+		params.smoothingThreshold = smoothingThreshold.getValue();
+
+		if (params.maxDpWindowSize > MAX_OPT_MAP_WINDOW)
+		{
+			ss << "The maximum number of the miss-cnt parameter is " << MAX_OPT_MAP_WINDOW << "." << std::endl;
+			error_exit(ss.str());
+		}
+
+		vector<string> allowedFormats = strings::split(EXPERIMENT_FORMAT_TYPES, ",");
+		if (std::find(allowedFormats.begin(), allowedFormats.end(), params.omFormat) == allowedFormats.end())
+		{
+			ss << "The allowed experiment format values are " << EXPERIMENT_FORMAT_TYPES << "." << std::endl;
+			error_exit(ss.str());
+		}
+	}
+	catch (TCLAP::ArgException &e)  // catch any exceptions
+	{
+		ss << e.error() << " for arg " << e.argId() << std::endl;
+		error_exit(ss.str());
+	}
+}
+
 int main(int argc, char** argv)
 {
 	vector<ExpMap> expMap;
-	RefMaps refMaps;
+	RefMaps refMaps;	
 
 	ParseCmdLine(argc, argv);
 	stats::init_stats(params.falseCutProb);
-	InitLogging();
+	InitLogging();	
 	Parse(expMap, refMaps);
-
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;

@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <sstream>
 
 using namespace std;
 
@@ -48,10 +49,56 @@ namespace strings{
 		return sUpper;
 	}
 
-	inline bool ends_with(std::string const & value, std::string const & ending)
+	inline std::string lower(const std::string s)
 	{
-		if (ending.size() > value.size()) return false;
-		return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+		string sLower = s;
+		std::transform(sLower.begin(), sLower.end(), sLower.begin(), ::tolower);
+		return sLower;
+	}
+
+	inline bool ends_with(std::string const & str, std::string const & suffix)
+	{
+		if (suffix.size() > str.size()) return false;
+		return std::equal(suffix.rbegin(), suffix.rend(), str.rbegin());
+	}
+
+	inline bool starts_with(std::string const & str, std::string const & prefix)
+	{
+		if (prefix.size() > str.size()) return false;
+		return std::equal(prefix.begin(), prefix.end(), str.begin());;
+	}
+
+	inline bool isFloat(string str) 
+	{
+		std::istringstream iss(str);
+		float f;
+		iss >> noskipws >> f; // noskipws considers leading whitespace invalid
+		// Check the entire string was consumed and if either failbit or badbit is set
+		return iss.eof() && !iss.fail();
+	}
+
+	inline int toInt(string str)
+	{
+		try {
+			return std::stoi(str);
+		}
+		catch (...)
+		{
+			return 0;
+		}
+		// return isFloat(str) ? std::stoi(str) : 0;
+	}
+
+	inline float toFloat(string str)
+	{		
+		try {
+			return std::stof(str);
+		}
+		catch (...)
+		{
+			return 0;
+		}
+		// return isFloat(str) ? std::stoi(str) : 0;
 	}
 }
 
