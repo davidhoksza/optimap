@@ -71,9 +71,9 @@ RefMaps parse_ref_map(string fileName)
 	string line;
 	for (string line; getline(*ifs, line);) {
 		vector<string> strs = strings::split(line, "\t");
-	
+
 		RMRead auxRMRead;
-		auxRMRead.chromosome = strings::trim(strs[0]);		
+		auxRMRead.chromosome = strings::trim(strs[0]);
 		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
 		auxRMRead.start = stof(strs[1]);
 		auxRMRead.length = stof(strs[3]) * 1000;
@@ -96,8 +96,8 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 	vector<string> cleavageSites;
 
 	string fragName;
-	for (std::string line; getline(*ifs, line);) 	
-	{		
+	for (std::string line; getline(*ifs, line);)
+	{
 		if (line.find("debug") != string::npos)
 		{
 			stringstream ss(line); // Insert the string into a stream
@@ -105,7 +105,7 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 			ss >> strBuffer;
 			while (ss >> strBuffer) cleavageSites.push_back(strBuffer);
 		}
-		
+
 		if (line.find("KpnI") != string::npos)
 		{
 			ExpMap f;
@@ -122,7 +122,7 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 					if (buffer[0] != 'K' && pos > 0) {
 						int aux = 1000 * atof(buffer);
 						f.reads.push_back(aux);
-						f.length += aux;						
+						f.length += aux;
 					}
 					pos = -1;
 				}
@@ -152,7 +152,7 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 	return expMap;
 }
 
-void clean_dp_matrix(DpMatrixCell ** matrix, int height, int width )
+void clean_dp_matrix(DpMatrixCell ** matrix, int height, int width)
 {
 	for (int ixRow = 0; ixRow < height; ixRow++)
 		for (int ixCol = 0; ixCol < width; ixCol++)
@@ -160,7 +160,7 @@ void clean_dp_matrix(DpMatrixCell ** matrix, int height, int width )
 }
 
 inline SCORE_TYPE transform_prob(SCORE_TYPE p)
-{	
+{
 	if (p == 0) return SUB_MAX;
 	SCORE_TYPE aux = -log(p);
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
@@ -179,15 +179,15 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 
 	for (int ixRow = 1; ixRow < experiment.size() + 1; ++ixRow)
 	{
-		bool isLastRow = ixRow == experiment.size() ? true : false;		
+		bool isLastRow = ixRow == experiment.size() ? true : false;
 
 		for (int ixCol = 1; ixCol <= reference.size(); ++ixCol)
-		{	
+		{
 			DpMatrixCell minCell;
 			minCell.value = SUB_MAX;
 			minCell.sourceColumn = ixCol - 1; //This value is used when no good match is found
 			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
-			
+
 			//First and last fragments are scored 0
 			if (ixRow == 1 || isLastRow)
 			{
@@ -213,13 +213,16 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 					for (int ixWindowCol = 1; ixWindowCol <= params.maxDpWindowSize; ++ixWindowCol)
 					{
 						if (ixCol - ixWindowCol < 0) break; //should I touch position out of the candidate window
-						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
-						//if (score >= minScoresSoFar[0]) continue;
 
 						colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
 						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);	
-						
-						
+
+						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
+						bool pass1 = true;
+						if (score >= minScoresSoFar[0]) continue;
+						//pass1 = false;
+
+
 						float stddev = params.sizingErrorStddev * (rowValue > params.smallFragmentThreshold ? rowValue : params.smallFragmentThreshold);
 
 						float x;
@@ -228,17 +231,14 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 							if (rowValue == colValue) x = 1;
 							else x = 0;
 						}
-						//else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
-						else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);
+						else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
+						//else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);
 
-						/*if (rowValue == 4518 && colValue == (3149 + 17070 + 1554))
-						{
-							cout << stddev << endl << x << endl << stats::transform_prob(x) << endl;							
-						}*/
+						
 						
 						score += stats::transform_prob(x);
-						//if (score >= minScoresSoFar[0]) continue;
-
+						if (score >= minScoresSoFar[0]) continue;
+						
 						//penalty computation
 						//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
 						SCORE_TYPE auxP;
@@ -251,16 +251,11 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						score += stats::transform_prob(auxP);
 
 
-						x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
+						//x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
 						// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
 						// we can provide only the rowValue and use it as index to the array with precomputed values.
-						//x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
+						x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
 						score += stats::transform_prob(x);
-
-						/*if (rowValue == 4518 && colValue == (3149 + 17070 + 1554))
-						{
-							cout << "final: " << score << "" << endl;							
-						}*/
 
 						scoresComputed++;
 						if (score < minCell.value)
@@ -271,15 +266,15 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						}
 					}
 				}
-			}			
+			}
 			matrix[ixRow][ixCol] = minCell;
-			//if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
-			//{
-			//	minScoresSoFar.erase(minScoresSoFar.begin());
-			//	minScoresSoFar.push_back(minCell.value);
-			//	sort(minScoresSoFar.begin(), minScoresSoFar.end(), std::greater<SCORE_TYPE>());
-			//	//for (auto &s : minScoresSoFar) cout << s << " "; cout << endl;
-			//}
+			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
+			{
+				minScoresSoFar.erase(minScoresSoFar.begin());
+				minScoresSoFar.push_back(minCell.value);
+				sort(minScoresSoFar.begin(), minScoresSoFar.end(), std::greater<SCORE_TYPE>());
+				//for (auto &s : minScoresSoFar) cout << s << " "; cout << endl;
+			}
 		}
 	}
 }
@@ -289,7 +284,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width)
 	Mappings mappings;
 
 	vector<pair<SCORE_TYPE, int>> minPositions; //top K min values and positions in increasing order
-	
+
 	for (int ixM = 1; ixM <= width - 1; ++ixM)
 	{
 		SCORE_TYPE alignmentScore = matrix[height - 1][ixM].value;
@@ -342,7 +337,7 @@ Mappings do_mapping(vector<int> &expMap, std::vector<RMRead> &refMap, vector<SCO
 	for (int ixDPM = 0; ixDPM < expMap.size() + 1; ++ixDPM) dpMatrix[ixDPM] = new DpMatrixCell[refMap.size() + 1];
 
 	Mappings matchSequences, matchSequencesRev;
-	
+
 	dp_fill_matrix(dpMatrix, expMap, refMap, minScoresSoFar);
 	matchSequences = dp_backtrack(dpMatrix, expMap.size() + 1, refMap.size() + 1);
 
@@ -368,7 +363,7 @@ Mappings do_mapping(vector<int> &expMap, std::vector<RMRead> &refMap, vector<SCO
 
 	//reverse the fragment back
 	std::reverse(expMap.begin(), expMap.end());
-	
+
 
 	for (int i = 0; i < expMap.size() + 1; ++i) delete[] dpMatrix[i];
 	delete[] dpMatrix;
@@ -387,14 +382,14 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 		vector<SCORE_TYPE> minScoresSoFar;
 		for (int ix = 0; ix < params.topK; ++ix) minScoresSoFar.push_back(SUB_MAX);
 		for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
-		{	
+		{
 			Mappings aux_mapping = do_mapping(expMap[ixRM].reads, refMap->second, minScoresSoFar);
 			for (Mappings::iterator itAux = aux_mapping.begin(); itAux != aux_mapping.end(); ++itAux)
 			{
 				itAux->chromosome = refMap->first;
-				itAux->ComputeQuality();				
+				itAux->ComputeQuality();
 			}
-			mappings.insert(mappings.end(), aux_mapping.begin(), aux_mapping.end());			
+			mappings.insert(mappings.end(), aux_mapping.begin(), aux_mapping.end());
 		}
 
 		//keep top params.topK mappings
@@ -408,7 +403,7 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 		//sort(mappings.begin(), mappings.end(), [](Mapping & a, Mapping & b) -> bool	{return a.score < b.score; });
 		mappings.erase(mappings.begin() + params.topK, mappings.end());
 		resultSet[ixRM] = mappings;
-	
+
 		scoresCalculations.push_back(scoresComputed); scoresComputed = 0;
 
 		mutexOM.lock();
@@ -421,7 +416,7 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 void InitLogging()
 {
 	if (!params.logFileName.empty())	logger.InitChannel(Logger::LOGFILE, params.logFileName);
-	if (params.outFileName!= "") logger.InitChannel(Logger::RESFILE, params.outFileName); 
+	if (params.outFileName != "") logger.InitChannel(Logger::RESFILE, params.outFileName);
 }
 
 void ParseCmdLine(int argc, char** argv)
@@ -440,16 +435,16 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
 		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
 		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
-		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");		
+		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");
 		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment \
-																	of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
+																		  																	of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
 		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. \
-																					Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
+																																										Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
 		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by \
-															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
+															   															   Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
 		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold \
-																		  will be merged with the neighbouring fragment", false, 1000, "int");
+																		  																		  will be merged with the neighbouring fragment", false, 1000, "int");
 
 		cmd.add(omFileNameArg);
 		cmd.add(rmFileNameArg);
@@ -486,7 +481,7 @@ void ParseCmdLine(int argc, char** argv)
 		params.sizingErrorStddev = sizingErrorStddev.getValue();
 		params.smallFragmentThreshold = smallFragmentThreshold.getValue();
 		params.missRestrictionProb = 1 - digEff.getValue();
-		params.noMissRestrictionProb =  1 - ((1 - pow(params.missRestrictionProb, params.maxDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
+		params.noMissRestrictionProb = 1 - ((1 - pow(params.missRestrictionProb, params.maxDpWindowSize - 1)) / (1 - params.missRestrictionProb) - 1);
 		params.falseCutProb = falseCutProb.getValue();
 		params.smoothingThreshold = smoothingThreshold.getValue();
 
@@ -508,9 +503,9 @@ void SmoothRefFragments(RefMaps &refMaps)
 			//we will proceed from the end and join every short fragment to its preceeding fragment
 			if (it->second[ixFrag].length < params.smoothingThreshold && ixFrag > 0)
 			{
-				it->second[ixFrag-1].length += it->second[ixFrag].length;
+				it->second[ixFrag - 1].length += it->second[ixFrag].length;
 				it->second.erase(it->second.begin() + ixFrag);
-			}			
+			}
 		}
 		//first fragment can be too short so it needs to be joined with its successor 
 		if (it->second[0].length < params.smoothingThreshold && it->second.size() > 1)
@@ -529,10 +524,10 @@ void SmoothExpFragments(vector<ExpMap> &expMaps)
 		{
 			//we will proceed from the end and join every short fragment to its preceeding fragment
 			if (it->reads[ixFrag] < params.smoothingThreshold && ixFrag > 0)
-			{				
+			{
 				it->reads[ixFrag - 1] += it->reads[ixFrag];
 				it->reads.erase(it->reads.begin() + ixFrag);
-			}			
+			}
 		}
 		//first fragment can be too short so it needs to be joined with its successor 
 		if (it->reads[0] < params.smoothingThreshold && it->reads.size() > 1)
@@ -673,7 +668,7 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 				int cntOM = 0;
 				while (ixOMAux <= mappings[ixMappings].alignment[ixAlignment].first)
 				{
-					int ixOmAuxReal = ixOMAux -1;
+					int ixOmAuxReal = ixOMAux - 1;
 					if (mappings[ixMappings].reversed) ixOmAuxReal = expMap[ixOM].reads.size() - ixOMAux;
 					int length = expMap[ixOM].reads[ixOmAuxReal];
 					sumOM += length; //ends of mapping are scored 0
@@ -701,7 +696,7 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 			ss << endl; logger.Log(Logger::LOGFILE, ss);
 			ssAln << endl; logger.Log(Logger::RESFILE, ssAln);
 			ssAlnDetail << endl; logger.Log(Logger::RESFILE, ssAlnDetail);
-		}		
+		}
 		ss << endl; logger.Log(Logger::RESFILE, ss);
 		ss << "-----------------" << endl; logger.Log(Logger::LOGFILE, ss);
 	}
@@ -718,7 +713,7 @@ int main(int argc, char** argv)
 	stats::init_stats(params.falseCutProb);
 	InitLogging();
 	Parse(expMap, refMaps);
-	
+
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;
