@@ -223,18 +223,20 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 			minCell.sourceColumn = ixCol - 1; //This value is used when no good match is found
 			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
 
-			//First and last fragments are scored 0
-			if (ixRow == 1 || isLastRow)
+			int diff = experiment[ixRow] - reference[ixCol].length;
+
+			//First and last fragments are scored 0 AND experiment fragment is shorter 
+			//(otherwise we would omit a clear cut, i.e. the alignment would be on wrong place due to this first/last fragment)
+			if ((ixRow == 1 || isLastRow) && diff < 0)
 			{
 				isLastRow ? minCell.value = matrix[ixRow - 1][ixCol - 1].value + stats::transform_prob(1) : minCell.value = stats::transform_prob(1);
 			}
 			else
 			{
-				//check whether the column and row not too different
-				int diff = experiment[ixRow] - reference[ixCol].length;
-				float stddev = params.sizingErrorStddev * (experiment[ixRow] > params.smallFragmentThreshold ? experiment[ixRow] : params.smallFragmentThreshold);
-				float ds = diff / stddev;
-				if (ds < -stats::max__reasonable_stddev || ds > stats::max__reasonable_stddev) continue;
+				//check whether the column and row are not too different				
+				//float stddev = params.sizingErrorStddev * (experiment[ixRow] > params.smallFragmentThreshold ? experiment[ixRow] : params.smallFragmentThreshold);
+				//float ds = diff / stddev;
+				//if (ds < -stats::max__reasonable_stddev || ds > stats::max__reasonable_stddev) continue;
 
 				int rowValue = 0;
 				for (int ixWindowRow = 1; ixWindowRow <= params.maxDpWindowSize; ++ixWindowRow)
@@ -552,9 +554,10 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 {
 	ss << endl << "Outputting results..." << endl; logger.Log(Logger::LOGFILE, ss);
 	ss << "ix;om_length;rm_length;length_diff;candidate_sections_length;score_calucations" << endl; logger.Log(Logger::STATSFILE, ss);
-
+	ss << "#QX11 qaulity_score1;quality_score2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#QX12 signal_to_noise_ratio1;signal_to_noise_ratio2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
-	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);	
 	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
 
 	int cntIncorrectlyMapped = 0;;
@@ -562,7 +565,20 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 	{
 		if (ixOM < params.ixOmStart || (ixOM > params.ixOmEnd && params.ixOmEnd != -1)) continue;
 		ss << "EXP_OPTMAP_IX: " << ixOM << endl; logger.Log(Logger::RESFILE, ss);
-		ss << "NAME: " << expMap[ixOM].name << endl; logger.Log(Logger::RESFILE, ss);
+		ss << "NAME: " << expMap[ixOM].name << endl; logger.Log(Logger::RESFILE, ss);	
+		for (int ix = 0; ix < 2; ix++)
+		{
+			vector<float> q = (ix == 0 ? expMap[ixOM].qx11 : expMap[ixOM].qx12);
+			ix == 0 ? ss << "QX11: " : ss << "QX12: ";
+			for (int ixQ = 0; ixQ < q.size(); ixQ++)
+			{
+				if (ixQ > 0) ss << ";";
+				ss << q[ixQ];
+			}
+			ss << endl;
+			logger.Log(Logger::RESFILE, ss);
+		}
+
 		Mappings mappings = omMappings[ixOM];
 		for (int ixMappings = 0; ixMappings < mappings.size(); ixMappings++)
 		{
