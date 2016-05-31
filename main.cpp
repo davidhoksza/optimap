@@ -554,8 +554,8 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 {
 	ss << endl << "Outputting results..." << endl; logger.Log(Logger::LOGFILE, ss);
 	ss << "ix;om_length;rm_length;length_diff;candidate_sections_length;score_calucations" << endl; logger.Log(Logger::STATSFILE, ss);
-	ss << "#QX11 qaulity_score1;quality_score2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
-	ss << "#QX12 signal_to_noise_ratio1;signal_to_noise_ratio2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#QX11 signal_to_noise_ratio1;signal_to_noise_ratio2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
+	ss << "#QX12 ave_intensity1;ave_intensity1;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);	
 	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
