@@ -8,7 +8,7 @@
 
 #include "common.h"
 #include "constants.h"
-//#include "indexing.h"
+#include "indexing.h"
 #include "types.h"
 #include "logger.h"
 #include "string_functions.h"
@@ -77,8 +77,8 @@ RefMaps parse_ref_map(string fileName)
 		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
 		auxRMRead.start = stof(strs[1]);
 		auxRMRead.length = stof(strs[3]) * 1000;
-		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
-		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
+		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = RefMap();
+		refMaps[auxRMRead.chromosome].fragments.push_back(auxRMRead);
 	}
 
 	delete ifs;
@@ -414,7 +414,7 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 		for (int ix = 0; ix < params.topK; ++ix) minScoresSoFar.push_back(SUB_MAX);
 		for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
 		{
-			Mappings aux_mapping = do_mapping(expMap[ixRM].reads, refMap->second, minScoresSoFar);
+			Mappings aux_mapping = do_mapping(expMap[ixRM].reads, refMap->second.fragments, minScoresSoFar);
 			for (Mappings::iterator itAux = aux_mapping.begin(); itAux != aux_mapping.end(); ++itAux)
 			{
 				itAux->chromosome = refMap->first;
@@ -454,20 +454,20 @@ void SmoothRefFragments(RefMaps &refMaps)
 {
 	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++)
 	{
-		for (int ixFrag = it->second.size() - 1; ixFrag >= 0; ixFrag--)
+		for (int ixFrag = it->second.fragments.size() - 1; ixFrag >= 0; ixFrag--)
 		{
 			//we will proceed from the end and join every short fragment to its preceeding fragment
-			if (it->second[ixFrag].length < params.smoothingThreshold && ixFrag > 0)
+			if (it->second.fragments[ixFrag].length < params.smoothingThreshold && ixFrag > 0)
 			{
-				it->second[ixFrag - 1].length += it->second[ixFrag].length;
-				it->second.erase(it->second.begin() + ixFrag);
+				it->second.fragments[ixFrag - 1].length += it->second.fragments[ixFrag].length;
+				it->second.fragments.erase(it->second.fragments.begin() + ixFrag);
 			}
 		}
 		//first fragment can be too short so it needs to be joined with its successor 
-		if (it->second[0].length < params.smoothingThreshold && it->second.size() > 1)
+		if (it->second.fragments[0].length < params.smoothingThreshold && it->second.fragments.size() > 1)
 		{
-			it->second[1].length += it->second[0].length;
-			it->second.erase(it->second.begin());
+			it->second.fragments[1].length += it->second.fragments[0].length;
+			it->second.fragments.erase(it->second.fragments.begin());
 		}
 	}
 }
@@ -502,13 +502,13 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	clock_t begin_time = clock();
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
-	expMaps = parse_exp_map(params.omFileName);
 	refMaps = parse_ref_map(params.rmFileName);
+	expMaps = parse_exp_map(params.omFileName, 10);	
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
 	int sum = 0;
-	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++) sum += it->second.size();
+	for (RefMaps::iterator it = refMaps.begin(); it != refMaps.end(); it++) sum += it->second.fragments.size();
 	ss << "ref. maps total size: " << sum << "\n"; logger.Log(Logger::LOGFILE, ss);
 	ss << "exp. maps length: " << expMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
 	ss << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; logger.Log(Logger::LOGFILE, ss);
@@ -587,17 +587,17 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 
 			int omLength = 0, rmLength = 0;
 			for (int ixAux = mappings[ixMappings].alignment.begin()->first + 1; ixAux <= (mappings[ixMappings].alignment.end() - 1)->first; ixAux++) omLength += expMap[ixOM].reads[ixAux - 1];
-			for (int ixAux = mappings[ixMappings].alignment.begin()->second + 1; ixAux <= (mappings[ixMappings].alignment.end() - 1)->second; ixAux++) rmLength += refMaps[chr][ixAux - 1].length;
+			for (int ixAux = mappings[ixMappings].alignment.begin()->second + 1; ixAux <= (mappings[ixMappings].alignment.end() - 1)->second; ixAux++) rmLength += refMaps[chr].fragments[ixAux - 1].length;
 
 			string posOmFirst = "0";
 			string posOmChrom = "";
-			string posRmFirst = std::to_string(refMaps[chr][mappings[ixMappings].alignment[0].second].start);	//the DP matrix (and hence indeces) in the alignment is +1 shifted (init row and col)
+			string posRmFirst = std::to_string(refMaps[chr].fragments[mappings[ixMappings].alignment[0].second].start);	//the DP matrix (and hence indeces) in the alignment is +1 shifted (init row and col)
 			//with respect to the real sequences. But beginning of the alignment starts
 			//-1 position before the "real" mapping starts -> no -1 shift needed
-			string posRmChrom = refMaps[chr][mappings[ixMappings].alignment[0].second].chromosome;
+			string posRmChrom = refMaps[chr].fragments[mappings[ixMappings].alignment[0].second].chromosome;
 			string posOmLast = std::to_string(expMap[0].length);
 			auto al = mappings[ixMappings].alignment;
-			string posRmLast = std::to_string(refMaps[chr][(mappings[ixMappings].alignment.end() - 1)->second - 1].start + refMaps[chr][(mappings[ixMappings].alignment.end() - 1)->second - 1].length);
+			string posRmLast = std::to_string(refMaps[chr].fragments[(mappings[ixMappings].alignment.end() - 1)->second - 1].start + refMaps[chr].fragments[(mappings[ixMappings].alignment.end() - 1)->second - 1].length);
 			if (expMap[ixOM].debugInfo.size() > 0)
 			{
 				posOmChrom = expMap[ixOM].debugInfo[0];
@@ -650,9 +650,9 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 				int cntRM = 0;
 				while (ixRMAux <= mappings[ixMappings].alignment[ixAlignment].second)
 				{
-					int length = refMaps[chr][ixRMAux - 1].length;
+					int length = refMaps[chr].fragments[ixRMAux - 1].length;
 					sumRM += length; //ends of mapping are scored 0
-					ssRmPos << " " << refMaps[chr][ixRMAux - 1].chromosome << "_" << refMaps[chr][ixRMAux - 1].start;
+					ssRmPos << " " << refMaps[chr].fragments[ixRMAux - 1].chromosome << "_" << refMaps[chr].fragments[ixRMAux - 1].start;
 					if (cntRM > 0) ssRmLengths << ",";
 					ssRmLengths << length;
 					ixRMAux++;
@@ -770,6 +770,9 @@ int main(int argc, char** argv)
 	stats::init_stats(params.falseCutProb);
 	InitLogging();	
 	Parse(expMap, refMaps);
+
+	init_index(refMaps, 40);
+
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;

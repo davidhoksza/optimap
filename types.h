@@ -46,7 +46,65 @@ struct RMRead {
 	std::string	chromosome;
 };
 
-typedef std::map <std::string, std::vector<RMRead> > RefMaps; //one map per chromosome
+
+struct SumTree {
+	SumTree *left = NULL;
+	SumTree *right = NULL;
+
+	int		height = 0;
+	int		sum = -1; //sum of the values in the interval the tree represents
+	int		ixFrom; //start index in the map the tree represents
+	int		ixTo; //end index in the map the tree represents
+
+	SumTree() {};
+	SumTree(SumTree *_left, SumTree *_right, int _height, int _sum, int _ixFrom, int _ixTo) :
+		left(_left), right(_right), height(_height), sum(_sum), ixFrom(_ixFrom), ixTo(_ixTo) {};
+
+	~SumTree()
+	{
+		if (left) delete left;
+		if (right) delete right;
+	}
+
+	int get_sum()
+	{
+		std::vector<SumTree*> processedTrees;
+		return _get_sum(processedTrees);
+	}	
+
+private:
+	int _get_sum(std::vector<SumTree *> &processedTrees)
+	{
+		if (!left)
+		{ 
+			if (std::find(processedTrees.begin(), processedTrees.end(), this) == processedTrees.end())
+			{
+				processedTrees.push_back(this);
+				return sum;
+			}
+			else return 0;
+		}
+		else return left->get_sum() + right->get_sum();
+	}
+
+};
+
+typedef std::vector<SumTree *> SumForrest;
+
+struct RefMap {
+	std::vector<RMRead> fragments;
+	SumForrest	sumForrest;
+
+	~RefMap()
+	{
+		for (int ix = 0; ix < sumForrest.size(); ix++) delete sumForrest[ix];
+	}
+
+};
+
+typedef std::map <std::string, RefMap> RefMaps; //one map per chromosome
+
+
 
 //one optical map fragment can optimally map to multiple positions in the reference map
 //each mapping consists of a vector of mapped positions, i.e. a pair

@@ -14,31 +14,35 @@
 
 using namespace std;
 
-map<int, vector<IndexRecord> > init_index(RefMaps refMaps)
+void init_index(RefMaps &refMaps, int height)
 {
-	map<int, vector<IndexRecord> > index;
-	deque<IndexRecord> runs; //the queue contains sum of the last MAX_OPT_MAP_WINDOW reference reads
+	for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap) init_index(refMap->second, height);
+}
 
-	//TODO: multiple chromosomes
-	/*cout << "Identification of possible fragment lenghts in reference map..." << endl;	
-	for (int ix = 0; ix < refMap.size(); ++ix)
+void init_index(RefMap &refMap, int height)
+{
+	for (int i = 0; i < refMap.fragments.size(); i++) 
 	{
-		int actualLength = refMap[ix].length;
-		for (int ixQ = 0; ixQ < runs.size(); ixQ++)
-		{
-			runs[ixQ].end_position = ix;
-			runs[ixQ].length += actualLength;
-		}
-		runs.push_back(IndexRecord(ix, ix, actualLength));
-		for (int ixQ = 0; ixQ < runs.size(); ixQ++)
-		{
-			if (index.find(runs[ixQ].length) == index.end()) index[runs[ixQ].length] = vector<IndexRecord>();
-			index[runs[ixQ].length].push_back(runs[ixQ]);
-		}
-		if (runs.size() > MAX_OPT_MAP_WINDOW) runs.pop_front();
-	}*/
+		refMap.sumForrest.push_back(new SumTree(NULL, NULL, 0, refMap.fragments[i].length, i, i));
+	}
 
-	return index;
+	for (int ixHeight = 1; ixHeight < height; ++ixHeight)
+	{
+		for (int ixForrest = refMap.sumForrest.size() - 1; ixForrest >= 1; ixForrest--)
+		{
+			SumTree *st = new SumTree();
+			st->left = refMap.sumForrest[ixForrest - 1];
+			st->right = refMap.sumForrest[ixForrest];			
+			st->sum = st->get_sum();
+			st->ixFrom = st->left->ixFrom;
+			st->ixTo = st->right->ixTo;
+
+			refMap.sumForrest.insert(refMap.sumForrest.begin() + ixForrest, st);
+			refMap.sumForrest.erase(refMap.sumForrest.begin() + ixForrest + 1);
+		}
+		refMap.sumForrest.erase(refMap.sumForrest.begin());
+		if (refMap.sumForrest.size() == 1) break;
+	}	
 }
 
 vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold)
@@ -55,8 +59,7 @@ vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, 
 	}
 
 	struct {
-		bool operator()(IndexRecord a, IndexRecord b)
-		{
+		bool operator()(IndexRecord a, IndexRecord b) {
 			return a.start_position < b.start_position;
 		}
 	} ixPosLess;
@@ -68,7 +71,7 @@ vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, 
 
 void analyze(vector<ExpMap> expMap, RefMaps refMaps)
 {
-	map<int, vector<IndexRecord> > refLengths = init_index(refMaps);
+	/*map<int, vector<IndexRecord> > refLengths = init_index(refMaps);
 
 	cout << "Frequencies of the fragments in the reference map:" << endl;
 	for (int ixOM = 0; ixOM < expMap.size(); ixOM++)
@@ -83,5 +86,5 @@ void analyze(vector<ExpMap> expMap, RefMaps refMaps)
 		}
 
 		cout << ixOM << ": " << cnt << endl;
-	}
+	}*/
 }

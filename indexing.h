@@ -9,6 +9,8 @@
 
 #include "types.h"
 
+
+
 struct IndexRecord {
 	int start_position;
 	int end_position;
@@ -19,7 +21,8 @@ struct IndexRecord {
 };
 
 void analyze(std::vector<ExpMap> expMap, std::vector<RMRead> refMap);
-std::map<int, std::vector<IndexRecord> > init_index(RefMaps refMaps);
+void init_index(RefMaps &refMaps, int height);
+void init_index(RefMap &refMap, int height);
 std::vector<IndexRecord> index_get_candidates(std::map<int, std::vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold = INDEX_NEIGHBORHOOD_THRESHOLD);
 
 #endif // INDEXING_H
