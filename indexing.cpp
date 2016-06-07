@@ -19,15 +19,23 @@ void init_index(RefMaps &refMaps, int height)
 	for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap) init_index(refMap->second, height);
 }
 
+void link_siblings(SumForrest &sf)
+{
+	for (int ixForrest = 0; ixForrest < sf.size() - 1; ++ixForrest) sf[ixForrest]->rightSibling = sf[ixForrest + 1];
+
+}
+
 void init_index(RefMap &refMap, int height)
 {
 	for (int i = 0; i < refMap.fragments.size(); i++) 
 	{
 		refMap.sumForrest.push_back(new SumTree(NULL, NULL, 0, refMap.fragments[i].length, i, i));
 	}
+	link_siblings(refMap.sumForrest);
 
 	for (int ixHeight = 1; ixHeight < height; ++ixHeight)
 	{
+		cout << ixHeight << endl;
 		for (int ixForrest = refMap.sumForrest.size() - 1; ixForrest >= 1; ixForrest--)
 		{
 			SumTree *st = new SumTree();
@@ -41,7 +49,9 @@ void init_index(RefMap &refMap, int height)
 			refMap.sumForrest.erase(refMap.sumForrest.begin() + ixForrest + 1);
 		}
 		refMap.sumForrest.erase(refMap.sumForrest.begin());
+		refMap.sumForrest[0]->mostLeft = true;
 		if (refMap.sumForrest.size() == 1) break;
+		link_siblings(refMap.sumForrest);
 	}	
 }
 

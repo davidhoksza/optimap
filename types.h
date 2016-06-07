@@ -51,6 +51,10 @@ struct SumTree {
 	SumTree *left = NULL;
 	SumTree *right = NULL;
 
+	SumTree *rightSibling = NULL;
+
+	bool	mostLeft = false; //used when deallocating where it is used to deallocate a node only once
+
 	int		height = 0;
 	int		sum = -1; //sum of the values in the interval the tree represents
 	int		ixFrom; //start index in the map the tree represents
@@ -62,30 +66,39 @@ struct SumTree {
 
 	~SumTree()
 	{
-		if (left) delete left;
+		if (mostLeft && left) delete left;
 		if (right) delete right;
+	}
+
+	SumTree *get_most_left_leaf()
+	{
+		if (left) return left->get_most_left_leaf();
+		else return this;		
+	}
+
+	SumTree *get_most_right_leaf()
+	{
+		if (right) return right->get_most_right_leaf();
+		else return this;
 	}
 
 	int get_sum()
 	{
-		std::vector<SumTree*> processedTrees;
-		return _get_sum(processedTrees);
-	}	
+		SumTree *stl = get_most_left_leaf();
+		SumTree *str = get_most_right_leaf();
 
-private:
-	int _get_sum(std::vector<SumTree *> &processedTrees)
-	{
-		if (!left)
-		{ 
-			if (std::find(processedTrees.begin(), processedTrees.end(), this) == processedTrees.end())
-			{
-				processedTrees.push_back(this);
-				return sum;
-			}
-			else return 0;
+		int _sum = 0;
+
+		SumTree *st = stl;
+		while (st != str)
+		{
+			_sum += st->sum;
+			st = st->rightSibling;
 		}
-		else return left->get_sum() + right->get_sum();
-	}
+		_sum += st->sum;
+
+		return _sum;
+	}	
 
 };
 
