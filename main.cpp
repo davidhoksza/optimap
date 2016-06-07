@@ -222,12 +222,10 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 			minCell.value = SUB_MAX;
 			minCell.sourceColumn = ixCol - 1; //This value is used when no good match is found
 			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
-
-			int diff = experiment[ixRow] - reference[ixCol].length;
-
+			
 			//First and last fragments are scored 0 AND experiment fragment is shorter 
 			//(otherwise we would omit a clear cut, i.e. the alignment would be on wrong place due to this first/last fragment)
-			if ((ixRow == 1 || isLastRow) && diff < 0)
+			if ((ixRow == 1 || isLastRow) && experiment[ixRow - 1] - reference[ixCol - 1].length < 0)
 			{
 				isLastRow ? minCell.value = matrix[ixRow - 1][ixCol - 1].value + stats::transform_prob(1) : minCell.value = stats::transform_prob(1);
 			}
