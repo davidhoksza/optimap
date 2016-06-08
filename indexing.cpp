@@ -6,6 +6,7 @@
 
 #include "types.h"
 #include "constants.h"
+//#include "common.h"
 #include "indexing.h"
 
 #include <deque>
@@ -35,13 +36,14 @@ void init_index(RefMap &refMap, int height)
 
 	for (int ixHeight = 1; ixHeight < height; ++ixHeight)
 	{
-		cout << ixHeight << endl;
+		//cout << ixHeight << endl;
 		for (int ixForrest = refMap.sumForrest.size() - 1; ixForrest >= 1; ixForrest--)
 		{
 			SumTree *st = new SumTree();
 			st->left = refMap.sumForrest[ixForrest - 1];
-			st->right = refMap.sumForrest[ixForrest];			
-			st->sum = st->get_sum();
+			st->right = refMap.sumForrest[ixForrest];	
+			st->height = st->left->height + 1;
+			st->sum = st->GetSum();
 			st->ixFrom = st->left->ixFrom;
 			st->ixTo = st->right->ixTo;
 
@@ -55,26 +57,84 @@ void init_index(RefMap &refMap, int height)
 	}	
 }
 
-vector<IndexRecord> index_get_candidates(map<int, vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold)
+//void serialize_index(RefMap &refMap, std::string fn)
+//{	
+//	ofstream ofs(fn);
+//	string errorMsg = "Index map file " + fn + " could not be created";
+//	if (ofs.is_open()) error_exit(errorMsg);
+//
+//
+//}
+
+void merge_candidate_regions(vector<CandidateRegion> &crs)
 {
-	vector<IndexRecord> candidates;
-
-	map<int, vector<IndexRecord> >::iterator l = index.lower_bound(expMap.length - threshold);
-	map<int, vector<IndexRecord> >::iterator u = index.upper_bound(expMap.length + threshold);
-
-	while (l != u)
+	for (int ixCR1 = crs.size() - 1; ixCR1 > 0; --ixCR1)
 	{
-		candidates.insert(candidates.end(), l->second.begin(), l->second.end());
-		l++;
+		for (int ixCR2 = ixCR1 - 1; ixCR2 >= 0; --ixCR2)
+		{
+			if ((crs[ixCR1].ixFrom >= crs[ixCR2].ixFrom && crs[ixCR1].ixFrom <= crs[ixCR2].ixTo) ||
+				(crs[ixCR1].ixTo >= crs[ixCR2].ixFrom && crs[ixCR1].ixTo <= crs[ixCR2].ixTo))
+			{
+				crs[ixCR2].ixFrom = min(crs[ixCR2].ixFrom, crs[ixCR1].ixFrom);
+				crs[ixCR2].ixTo = max(crs[ixCR2].ixTo, crs[ixCR1].ixTo);
+				crs[ixCR2].score = max(crs[ixCR2].score, crs[ixCR1].score);
+
+				crs.erase(crs.begin() + ixCR1);
+				break;
+			}
+		}
+	}
+}
+
+vector<CandidateRegion> _index_get_candidates(const RefMap &refMap, const ExpMap &expMap, const Params &params)
+{
+	vector<CandidateRegion> candidates;
+
+	int optimalHeigt = expMap.reads.size() * (1 + params.missRestrictionProb) - 1; //-1 because node at heigh 1 has 2 childern
+	SumTree *st = refMap.sumForrest[0]->GetMostLeftAtHeight(optimalHeigt);
+
+	while (st)
+	{
+		int diff = abs(st->sum - expMap.length);
+		if (candidates.size() < params.topK || diff < candidates[0].score)
+		{
+			CandidateRegion cr;
+			cr.chromosome = refMap.fragments[0].chromosome;
+			cr.score = diff;
+			cr.ixFrom = st->ixFrom;
+			cr.ixTo = st->ixTo;
+
+			if (candidates.size() > params.topK) candidates.erase(candidates.begin());
+
+			if (candidates.size() == 0) candidates.push_back(cr);
+			else
+			{
+				vector<CandidateRegion>::iterator it = candidates.begin();
+				while (it != candidates.end() && it->score < diff) it++;
+				candidates.insert(it, cr);
+			}
+		}
+
+		st = st->rightSibling;
 	}
 
-	struct {
-		bool operator()(IndexRecord a, IndexRecord b) {
-			return a.start_position < b.start_position;
-		}
-	} ixPosLess;
-	sort(candidates.begin(), candidates.end(), ixPosLess);
-	//sort(candidates.begin(), candidates.end(), [](IndexRecord & a, IndexRecord & b) -> bool	{return a.start_position < b.start_position;});
+	merge_candidate_regions(candidates);
+
+	return candidates;
+}
+
+vector<CandidateRegion> index_get_candidates(const RefMaps &refMaps, const ExpMap &expMap, const Params &params)
+{
+	vector<CandidateRegion> candidates;
+	for (RefMaps::const_iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
+	{
+		vector<CandidateRegion> auxCandidates = _index_get_candidates(refMap->second, expMap, params);
+		candidates.insert(candidates.end(), auxCandidates.begin(), auxCandidates.end());
+	}
+	
+	struct { bool operator()(CandidateRegion a, CandidateRegion b){ return a.score < b.score; } } crLess;
+	sort(candidates.begin(), candidates.end(), crLess);
+	if (params.topK < candidates.size()) candidates.erase(candidates.begin() + params.topK, candidates.end());
 
 	return candidates;
 }

@@ -201,13 +201,16 @@ inline SCORE_TYPE transform_prob(SCORE_TYPE p)
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
 }
 
-void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar)
+void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar, SCORE_TYPE scoreThreshold, int ixRefFrom, int ixRefTo)
 {
+	int ixColFrom = ixRefFrom + 1;
+	int ixColTo = ixRefTo + 1;
+
 	//first, let's initiliaze the first column with submax values which ensures 
 	//that the resulting mapping will capture the whole fragemnt
 	//we don't use max values because that might cause overflow
 	//since we add to these values
-	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][0].value = SUB_MAX);
+	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][ixColFrom - 1].value = SUB_MAX);
 
 	//and first row by 0 so that the alignment can't start anywhere in the reference
 	for (int ixCol = 0; ixCol <= reference.size(); matrix[0][ixCol++].value = stats::transform_prob(1));
@@ -216,7 +219,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 	{
 		bool isLastRow = ixRow == experiment.size() ? true : false;
 
-		for (int ixCol = 1; ixCol <= reference.size(); ++ixCol)
+		for (int ixCol = ixColFrom; ixCol <= ixColTo; ++ixCol)
 		{
 			DpMatrixCell minCell;
 			minCell.value = SUB_MAX;
@@ -247,13 +250,14 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 					int colValue = 0;
 					for (int ixWindowCol = 1; ixWindowCol <= params.maxDpWindowSize; ++ixWindowCol)
 					{
-						if (ixCol - ixWindowCol < 0) break; //should I touch position out of the candidate window
+						if (ixCol - ixWindowCol < ixColFrom - 1) break; //should I touch position out of the candidate window
 
 						colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
 						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);	
 
 						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
-						if (score >= minScoresSoFar[0]) continue;
+						if (score >= minScoresSoFar[0] || score > scoreThreshold) continue;
+						//if (score >= SUB_MAX) continue;
 
 						float stddev = params.sizingErrorStddev * (rowValue > params.smallFragmentThreshold ? rowValue : params.smallFragmentThreshold);
 
@@ -267,7 +271,8 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						//else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);						
 						
 						score += stats::transform_prob(x);
-						if (score >= minScoresSoFar[0]) continue;
+						if (score >= minScoresSoFar[0] || score > scoreThreshold) continue;
+						//if (score >= SUB_MAX) continue;
 						
 						//penalty computation
 						//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
@@ -297,7 +302,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 				}
 			}
 			matrix[ixRow][ixCol] = minCell;
-			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
+			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0] && minCell.value <= scoreThreshold)
 			{
 				minScoresSoFar.erase(minScoresSoFar.begin());
 				minScoresSoFar.push_back(minCell.value);
@@ -308,13 +313,16 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 	}
 }
 
-Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width)
+Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width, int ixRefFrom, int ixRefTo)
 {
+	int ixColFrom = ixRefFrom + 1;
+	int ixColTo = ixRefTo + 1;
+
 	Mappings mappings;
 
 	vector<pair<SCORE_TYPE, int>> minPositions; //top K min values and positions in increasing order
 
-	for (int ixM = 1; ixM <= width - 1; ++ixM)
+	for (int ixM = ixColFrom; ixM <= ixColTo; ++ixM)
 	{
 		SCORE_TYPE alignmentScore = matrix[height - 1][ixM].value;
 		if (minPositions.size() == 0) minPositions.push_back(make_pair(alignmentScore, ixM));
@@ -339,7 +347,7 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width)
 		vector<SCORE_TYPE> scores;
 
 		int ixRow = height - 1, ixCol = match.second;
-		while (ixRow >= 1 && ixCol >= 1)
+		while (ixRow >= 1 && ixCol >= ixColFrom)
 		{
 			diagonal.push_back(make_pair(ixRow, ixCol));
 			scores.push_back(matrix[ixRow][ixCol].value);
@@ -360,39 +368,39 @@ Mappings dp_backtrack(DpMatrixCell **matrix, int height, int width)
 	return mappings;
 }
 
-Mappings do_mapping(vector<int> &expMap, std::vector<RMRead> &refMap, vector<SCORE_TYPE> &minScoresSoFar)
+Mappings do_mapping(vector<int> &expMap, std::vector<RMRead> &refMap, vector<SCORE_TYPE> &minScoresSoFar, SCORE_TYPE scoreThreshold, int ixRefFrom = -1, int ixRefTo = -1)
 {
+	if (ixRefFrom == -1)
+	{
+		ixRefFrom = 0; 
+		ixRefTo = refMap.size() - 1;
+	}
+
 	DpMatrixCell **dpMatrix = new DpMatrixCell*[expMap.size() + 1];
 	for (int ixDPM = 0; ixDPM < expMap.size() + 1; ++ixDPM) dpMatrix[ixDPM] = new DpMatrixCell[refMap.size() + 1];
 
 	Mappings matchSequences, matchSequencesRev;
 
-	dp_fill_matrix(dpMatrix, expMap, refMap, minScoresSoFar);
-	matchSequences = dp_backtrack(dpMatrix, expMap.size() + 1, refMap.size() + 1);
+	dp_fill_matrix(dpMatrix, expMap, refMap, minScoresSoFar, scoreThreshold, ixRefFrom, ixRefTo);
+	matchSequences = dp_backtrack(dpMatrix, expMap.size() + 1, refMap.size() + 1, ixRefFrom, ixRefTo);
 
 	//repeat the process with reversed experimental map
 	clean_dp_matrix(dpMatrix, expMap.size() + 1, refMap.size() + 1);
 	std::reverse(expMap.begin(), expMap.end());
-	dp_fill_matrix(dpMatrix, expMap, refMap, minScoresSoFar);
-	matchSequencesRev = dp_backtrack(dpMatrix, expMap.size() + 1, refMap.size() + 1);
+	dp_fill_matrix(dpMatrix, expMap, refMap, minScoresSoFar, scoreThreshold, ixRefFrom, ixRefTo);
+	matchSequencesRev = dp_backtrack(dpMatrix, expMap.size() + 1, refMap.size() + 1, ixRefFrom, ixRefTo);
 	for (int ixMSR = 0; ixMSR < matchSequencesRev.size(); ixMSR++) matchSequencesRev[ixMSR].reversed = true;
 
 	//add the reverse matches into the normal matches vector
 	matchSequences.insert(matchSequences.end(), matchSequencesRev.begin(), matchSequencesRev.end());
 
 	//restrict the list of sequences to topK		
-	struct {
-		bool operator()(Mapping a, Mapping b)
-		{
-			return a.score < b.score;
-		}
-	} mapLess;
+	struct { bool operator()(Mapping a, Mapping b) { return a.score < b.score; } } mapLess;
 	sort(matchSequences.begin(), matchSequences.end(), mapLess);
 	if (params.topK < matchSequences.size()) matchSequences.erase(matchSequences.begin() + params.topK, matchSequences.end());
 
-	//reverse the fragment back
+	//reverse the experimental map back
 	std::reverse(expMap.begin(), expMap.end());
-
 
 	for (int i = 0; i < expMap.size() + 1; ++i) delete[] dpMatrix[i];
 	delete[] dpMatrix;
@@ -400,19 +408,40 @@ Mappings do_mapping(vector<int> &expMap, std::vector<RMRead> &refMap, vector<SCO
 	return matchSequences;
 }
 
-
 void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Mappings* resultSet)
 {
-	for (int ixRM = from; ixRM <= to; ++ixRM)
+	for (int ixExp = from; ixExp <= to; ++ixExp)
 	{
-		int threshold = INDEX_NEIGHBORHOOD_THRESHOLD;
-
 		Mappings mappings;
 		vector<SCORE_TYPE> minScoresSoFar;
+		SCORE_TYPE scoreThreshold = SUB_MAX;
+
+		//If indexing is turned on, first candidate scores in the candidate regions
+		if (refMaps.begin()->second.sumForrest.size() > 0)
+		{
+			for (int ix = 0; ix < params.topK; ++ix) minScoresSoFar.push_back(SUB_MAX);
+			vector<CandidateRegion> candidates = index_get_candidates(refMaps, expMap[ixExp], params);
+			for (int ixCR = 0; ixCR < candidates.size(); ixCR++)
+			{
+				int regionSize = candidates[ixCR].ixTo - candidates[ixCR].ixFrom;
+				int ixFrom = max(candidates[ixCR].ixFrom - regionSize / 2, 0);
+				int ixTo = min(candidates[ixCR].ixTo + regionSize / 2, (int)refMaps[candidates[ixCR].chromosome].fragments.size() - 1);
+				//we do not care about the mappings, just about filling in the minScores
+				do_mapping(expMap[ixExp].reads, refMaps[candidates[ixCR].chromosome].fragments, minScoresSoFar, scoreThreshold, ixFrom, ixTo);				
+			}
+			if (minScoresSoFar.size() > 0)
+			{
+				scoreThreshold = minScoresSoFar[0];
+				//cout << ixExp << ":" << scoreThreshold << endl;
+				minScoresSoFar.empty();
+			}
+		}
+		
 		for (int ix = 0; ix < params.topK; ++ix) minScoresSoFar.push_back(SUB_MAX);
+		
 		for (RefMaps::iterator refMap = refMaps.begin(); refMap != refMaps.end(); ++refMap)
 		{
-			Mappings aux_mapping = do_mapping(expMap[ixRM].reads, refMap->second.fragments, minScoresSoFar);
+			Mappings aux_mapping = do_mapping(expMap[ixExp].reads, refMap->second.fragments, minScoresSoFar, scoreThreshold);
 			for (Mappings::iterator itAux = aux_mapping.begin(); itAux != aux_mapping.end(); ++itAux)
 			{
 				itAux->chromosome = refMap->first;
@@ -422,16 +451,11 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 		}
 
 		//keep top params.topK mappings
-		struct {
-			bool operator()(Mapping a, Mapping b)
-			{
-				return a.score < b.score;
-			}
-		} mapLess;
+		struct { bool operator()(Mapping a, Mapping b) { return a.score < b.score; } } mapLess;
 		sort(mappings.begin(), mappings.end(), mapLess);
 		//sort(mappings.begin(), mappings.end(), [](Mapping & a, Mapping & b) -> bool	{return a.score < b.score; });
 		mappings.erase(mappings.begin() + params.topK, mappings.end());
-		resultSet[ixRM] = mappings;
+		resultSet[ixExp] = mappings;
 
 		scoresCalculations.push_back(scoresComputed); scoresComputed = 0;
 
@@ -769,11 +793,14 @@ int main(int argc, char** argv)
 	InitLogging();	
 	Parse(expMap, refMaps);
 
-	cout << "indexing" << endl;
-	init_index(refMaps, (EXPECTED_MAX_EXP_MAP_SIZE-1) * (params.maxDpWindowSize - 1));
-	cout << "index ready" << endl;
-
+	//cout << "indexing" << endl;
+	//init_index(refMaps, (EXPECTED_MAX_EXP_MAP_SIZE-1) * (params.maxDpWindowSize - 1));
+	//cout << "index ready" << endl;
+	//clock_t begin_time = clock();	
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
+	//cout << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << "\n"; 
+	//return 0;
+
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;
 

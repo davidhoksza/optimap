@@ -11,4 +11,4 @@ void error_exit(std::string message)
 }
 
 
-#endif // TYPES_H
+#endif // COMMON_H

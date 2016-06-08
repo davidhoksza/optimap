@@ -70,22 +70,27 @@ struct SumTree {
 		if (right) delete right;
 	}
 
-	SumTree *get_most_left_leaf()
+	SumTree *GetMostLeftLeaf()
 	{
-		if (left) return left->get_most_left_leaf();
-		else return this;		
+		return left ? left->GetMostLeftLeaf() : this;
 	}
 
-	SumTree *get_most_right_leaf()
+	SumTree *GetMostRightLeaf()
 	{
-		if (right) return right->get_most_right_leaf();
-		else return this;
+		return right ? right->GetMostRightLeaf() : this;
 	}
 
-	int get_sum()
+	SumTree *GetMostLeftAtHeight(int _height)
 	{
-		SumTree *stl = get_most_left_leaf();
-		SumTree *str = get_most_right_leaf();
+		if (height == 0) return NULL;
+		else return _height == height ? this : left->GetMostLeftAtHeight(_height);
+			
+	}
+
+	int GetSum()
+	{
+		SumTree *stl = GetMostLeftLeaf();
+		SumTree *str = GetMostRightLeaf();
 
 		int _sum = 0;
 

@@ -8,21 +8,21 @@
 #define INDEXING_H
 
 #include "types.h"
+//#include "gzstream/gzstream.h"
 
 
-
-struct IndexRecord {
-	int start_position;
-	int end_position;
-	int length;
-
-	IndexRecord() : start_position(-1), end_position(-1), length(0) {};
-	IndexRecord(int sp, int ep, int l) : start_position(sp), end_position(sp), length(l) {};
+struct CandidateRegion {
+	std::string	chromosome;
+	int			ixFrom;
+	int			ixTo;
+	int			score;
 };
 
 void analyze(std::vector<ExpMap> expMap, std::vector<RMRead> refMap);
 void init_index(RefMaps &refMaps, int height);
 void init_index(RefMap &refMap, int height);
-std::vector<IndexRecord> index_get_candidates(std::map<int, std::vector<IndexRecord> > &index, const ExpMap &expMap, const int threshold = INDEX_NEIGHBORHOOD_THRESHOLD);
+//void serialize_index(RefMap &refMap, std::string fn);
+//void deserialize_index(RefMap &refMap, std::string fn);
+std::vector<CandidateRegion> index_get_candidates(const RefMaps &refMaps, const ExpMap &expMap, const Params &params);
 
 #endif // INDEXING_H
