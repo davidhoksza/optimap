@@ -432,10 +432,14 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 			if (minScoresSoFar.size() > 0)
 			{
 				scoreThreshold = minScoresSoFar[0];
-				//cout << ixExp << ":" << scoreThreshold << endl;
+				cout << ixExp << ":" << scoreThreshold << endl;
 				minScoresSoFar.empty();
 			}
 		}
+
+		/*if (ixExp == 0) scoreThreshold = 28;
+		if (ixExp == 1) scoreThreshold = 35;
+		if (ixExp == 2) scoreThreshold = 94;*/
 		
 		for (int ix = 0; ix < params.topK; ++ix) minScoresSoFar.push_back(SUB_MAX);
 		

@@ -136,6 +136,9 @@ vector<CandidateRegion> index_get_candidates(const RefMaps &refMaps, const ExpMa
 	sort(candidates.begin(), candidates.end(), crLess);
 	if (params.topK < candidates.size()) candidates.erase(candidates.begin() + params.topK, candidates.end());
 
+	for (int i = 0; i < candidates.size(); i++) cout << candidates[i].score << " ";
+	cout << endl;
+
 	return candidates;
 }
 
