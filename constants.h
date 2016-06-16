@@ -7,6 +7,7 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+#include <limits>
 
 const short int MAX_OPT_MAP_WINDOW = 10;
 const short int INDEX_NEIGHBORHOOD_THRESHOLD = 100;
