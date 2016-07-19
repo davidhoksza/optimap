@@ -29,23 +29,23 @@ namespace stats {
 	{
 		switch (n)
 		{
-			case 0: return 1;
-			case 1: return 1;
-			case 2: return 2;
-			case 3: return 6;
-			case 4: return 24;
-			case 5: return 120;
-			case 6: return 720;
-			case 7: return 5040;
-			case 8: return 40320;
-			case 9: return 362880;
-			case 10: return 3628800;	
-			default:
-				break;
+		case 0: return 1;
+		case 1: return 1;
+		case 2: return 2;
+		case 3: return 6;
+		case 4: return 24;
+		case 5: return 120;
+		case 6: return 720;
+		case 7: return 5040;
+		case 8: return 40320;
+		case 9: return 362880;
+		case 10: return 3628800;
+		default:
+			break;
 		}
 
 		//return (n == 1 || n == 0) ? 1 : factorial(n - 1) * n;
-		
+
 		error_exit("Factorial computation only up to 10 available.");
 		return 0; //just so that the compiler does not complain
 	}
@@ -61,6 +61,51 @@ namespace stats {
 	{
 		if (x < -max__reasonable_stddev || x > max__reasonable_stddev) return 0;
 		else return gaussian_map[(int)(x * CNT_PROB_BINS) + CNT_PROB_BINS * max__reasonable_stddev]; //+ CNT_PROB_BINS * max__reasonable_stddev -> index starts from 0
+	}
+
+	inline float pdf_laplace_full(float x, float location, float scale)
+	{
+		//****************************************************************************80
+		//
+		//  Purpose:
+		//
+		//    LAPLACE_PDF evaluates the Laplace PDF.
+		//
+		//  Discussion:
+		//
+		//    PDF(A,B;X) = exp ( - abs ( X - A ) / B ) / ( 2 * B )
+		//
+		//  Discussion:
+		//
+		//    The Laplace PDF is also known as the Double Exponential PDF.
+		//
+		//  Licensing:
+		//
+		//    This code is distributed under the GNU LGPL license.
+		//
+		//  Modified:
+		//
+		//    09 February 1999
+		//
+		//  Author:
+		//
+		//    John Burkardt
+		//
+		//  Parameters:
+		//
+		//    Input, double X, the argument of the PDF.
+		//
+		//    Input, double A, B, the parameters of the PDF.
+		//    0.0 < B.
+		//
+		//    Output, double LAPLACE_PDF, the value of the PDF.
+		//
+		double pdf;
+
+		pdf = exp(-fabs(x - location) / scale) / (2.0 * scale);
+
+		return pdf;
+
 	}
 
 	inline SCORE_TYPE pdf_poisson(int n, int lambda_times_false_cut_p)

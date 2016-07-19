@@ -229,7 +229,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		if (params.maxDpWindowSize == 1) auxP = 1;
 		else
 		{
-			if (cntRefFrags > 1) auxP = pow(params.missRestrictionProb, cnt_ref_frags - 1);
+			if (cntRefFrags > 1) auxP = pow(params.missRestrictionProb, cntRefFrags - 1);
 			else auxP = params.noMissRestrictionProb;
 		}
 		score += stats::transform_prob(auxP);
@@ -250,12 +250,12 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			location = 0.858181;
 			scale = 0.180196;
 		}
-		else if (vector<int> &experiment, std::vector<RMRead> &reference < 3600)
+		else if (refLength < 3600)
 		{
 			location = 0.980760;
 			scale = 0.071176;
 		}
-		else if (vector<int> &experiment, std::vector<RMRead> &reference < 4800)
+		else if (refLength < 4800)
 		{
 			location = 1.003354;
 			scale = 0.052800;
@@ -272,8 +272,10 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		vector<float> digestion_probs;
 		for (int ix = 1; ix < cntRefFrags; ix++)
 		{
-			int d1 = reference[ixRef].length;
-			int d2 = reference[ixRef].length;
+			int d1 = reference[ixRef + ix - 1].length;
+			int d2 = reference[ixRef + ix].length;
+			float dAvg = (d1 + d2) / 2.0;
+			digestion_probs.push_back(dAvg);
 		}
 
 		//False cuts
