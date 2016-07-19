@@ -201,6 +201,88 @@ inline SCORE_TYPE transform_prob(SCORE_TYPE p)
 	return (aux > SUB_MAX) ? SUB_MAX : aux;
 }
 
+SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntRefFrags, int ixExp, int ixRef, vector<int> &experiment, std::vector<RMRead> &reference)
+{
+	SCORE_TYPE score = 0;
+
+	if (params.errorModel == "valuev")
+	{
+
+		//float stddev = params.sizingErrorStddev * (exp_length > params.smallFragmentThreshold ? exp_length : params.smallFragmentThreshold);
+		float stddev = sqrt(float(refLength)) * (refLength > params.smallFragmentThreshold ? 5 : 6.4);
+
+		float x;
+		if (stddev == 0)
+		{
+			if (expLength == refLength) x = 1;
+			else x = 0;
+		}
+		else x = stats::pdf_gaussian((expLength - refLength) / stddev, 0, 1);
+		//else x = stats::pdf_gaussian_full((exp_length - ref_length) / stddev, 0, 1);
+		//else x = stats::pdf_gaussian_full((exp_length - ref_length) / sqrt((double)ref_length), 0, 5);
+
+		score += stats::transform_prob(x);
+
+		//penalty computation
+		//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
+		SCORE_TYPE auxP;
+		if (params.maxDpWindowSize == 1) auxP = 1;
+		else
+		{
+			if (cntRefFrags > 1) auxP = pow(params.missRestrictionProb, cnt_ref_frags - 1);
+			else auxP = params.noMissRestrictionProb;
+		}
+		score += stats::transform_prob(auxP);
+
+		//x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
+		// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
+		// we can provide only the rowValue and use it as index to the array with precomputed values.
+		x = stats::pdf_poisson(cntExpFrags - 1, expLength);
+		score += stats::transform_prob(x);
+	}
+	else if (params.errorModel == "li")
+	{
+		// Sizing error
+
+		float location, scale;
+		if (refLength < 2400)
+		{
+			location = 0.858181;
+			scale = 0.180196;
+		}
+		else if (vector<int> &experiment, std::vector<RMRead> &reference < 3600)
+		{
+			location = 0.980760;
+			scale = 0.071176;
+		}
+		else if (vector<int> &experiment, std::vector<RMRead> &reference < 4800)
+		{
+			location = 1.003354;
+			scale = 0.052800;
+		}
+		else 
+		{
+			location = 1.00482;
+			scale = 0.042428;
+		}
+
+		score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
+
+		// Missing cuts
+		vector<float> digestion_probs;
+		for (int ix = 1; ix < cntRefFrags; ix++)
+		{
+			int d1 = reference[ixRef].length;
+			int d2 = reference[ixRef].length;
+		}
+
+		//False cuts
+
+	}
+
+	return score;
+}
+
 void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar)
 {
 	//first, let's initiliaze the first column with submax values which ensures 
@@ -239,8 +321,9 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 				int rowValue = 0;
 				for (int ixWindowRow = 1; ixWindowRow <= params.maxDpWindowSize; ++ixWindowRow)
 				{
-					if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
 					int ixExp = ixRow - ixWindowRow;
+					if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
+					
 					//ends of fragments can be aligned with zero score since
 					//the molecules forming fragments were not created with a restriction enzyme
 					rowValue += experiment[ixExp];
@@ -249,49 +332,21 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 					{
 						if (ixCol - ixWindowCol < 0) break; //should I touch position out of the candidate window
 
-						colValue += reference[ixCol - ixWindowCol].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
+						int ixRef = ixCol - ixWindowCol;
+						colValue += reference[ixRef].length; //since the maps and dp table are shifted by 1, this returns in the first iteration the inspected position ([ixRow,ixCol])
 						//float score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value + pow(rowValue - colValue, 2)/(colValue*1.05);	
 
-						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixCol - ixWindowCol].value;
+						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixRef].value;
 						if (score >= minScoresSoFar[0]) continue;
-
-						float stddev = params.sizingErrorStddev * (rowValue > params.smallFragmentThreshold ? rowValue : params.smallFragmentThreshold);
-
-						float x;
-						if (stddev == 0)
-						{
-							if (rowValue == colValue) x = 1;
-							else x = 0;
-						}
-						else x = stats::pdf_gaussian((rowValue - colValue) / stddev, 0, 1);
-						//else x = stats::pdf_gaussian_full((rowValue - colValue) / stddev, 0, 1);						
-						
-						score += stats::transform_prob(x);
+						//we use ixCol-1 and not ixCol, since in score_segment we will index experiment and refernece maps, which are not +1 indexed as the DP matrix
+						score += score_segment(rowValue, colValue, ixWindowRow, ixWindowCol, ixCol-1, ixRow-1, experiment, reference);
 						if (score >= minScoresSoFar[0]) continue;
 						
-						//penalty computation
-						//score += (ixWindowRow - 1) * params.mapOmMissedPenalty + (ixWindowCol - 1)* params.mapRmMissedPenalty;
-						SCORE_TYPE auxP;
-						if (params.maxDpWindowSize == 1) auxP = 1;
-						else
-						{
-							if (ixWindowCol > 1) auxP = pow(params.missRestrictionProb, ixWindowCol - 1);
-							else auxP = params.noMissRestrictionProb;
-						}
-						score += stats::transform_prob(auxP);
-
-						//x = stats::pdf_poisson_full(ixWindowRow - 1, colValue * params.falseCutProb);
-						// The Poisson PDF is precomputed with rowValue * params.falseCutProb. But since falseCutProb is constant,
-						// we can provide only the rowValue and use it as index to the array with precomputed values.
-						x = stats::pdf_poisson(ixWindowRow - 1, rowValue);
-						score += stats::transform_prob(x);
-
-						scoresComputed++;
 						if (score < minCell.value)
 						{
 							minCell.value = score;
-							minCell.sourceColumn = ixCol - ixWindowCol;
-							minCell.sourceRow = ixRow - ixWindowRow;
+							minCell.sourceColumn = ixRef;
+							minCell.sourceRow = ixCol;
 						}
 					}
 				}
@@ -680,23 +735,28 @@ void ParseCmdLine(int argc, char** argv)
 		TCLAP::ValueArg<std::string> omFileNameArg("o", "expmap", "Experimental optical maps file (either plain text or gzipped)", true, "", "filename");
 		TCLAP::ValueArg<std::string> rmFileNameArg("r", "refmap", "Reference map file (either plain text or gzipped)", true, "", "filename");
 		ss.str(std::string());  ss << "Format of experiment file. Supported formats: [" << EXPERIMENT_FORMAT_TYPES << "]";
-		TCLAP::ValueArg<std::string> formatArg("", "expformat", ss.str(), false, "opgen", "string");
-		ss.str(std::string());
+		TCLAP::ValueArg<std::string> formatArg("", "expformat", ss.str(), false, "opgen", "string"); ss.str(std::string());
 		TCLAP::ValueArg<std::string> outFileNameArg("m", "outfile", "Output mapping file (if not present, the standard output will be used)", false, "", "filename");
 		TCLAP::ValueArg<std::string> logFileNameArg("l", "logfile", "Log file", false, "", "filename");
 		TCLAP::ValueArg<int> ixStartArg("b", "begin", "Index (zero-based) of the first fragment to map in the OM", false, 0, "int");
 		TCLAP::ValueArg<int> ixEndArg("e", "end", "Index (zero-based) of the last fragment to map in the OM", false, -1, "int");
 		TCLAP::ValueArg<int> cntThreadsArg("t", "threads", "Number of threads to use", false, 1, "int");
-		TCLAP::ValueArg<int> topK("k", "topk", "Finds top K best mappings for each experimental map", false, 1, "int");
+		TCLAP::ValueArg<int> topK("k", "topk", "Returns top K best mappings for each experimental map", false, 1, "int");
 		TCLAP::ValueArg<string> chromosome("c", "chromosome", "Target chromosome (empty string = no restriction)", false, "", "string");
+		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");
+		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold will be merged with the neighbouring fragment", false, 1000, "int");
+
+		ss.str(std::string());  ss << "Error model. Currently supported models: [" << ERROR_MODELS << "]";
+		TCLAP::ValueArg<std::string> errorModelArg("", "errmodel", ss.str(), false, "valuev", "string"); ss.str(std::string());
+		
 		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
 		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
-		TCLAP::ValueArg<int> dpwindowsize("", "miss-cnt", "Maximum number of missed or false restriction sites per aligned segment (maximal allowed value is 3).", false, 3, "int");
+		
 		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment  of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
 		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
 		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
-		TCLAP::ValueArg<float> smoothingThreshold("", "smooth-threshold", "Fragments shorther than this threshold will be merged with the neighbouring fragment", false, 1000, "int");
+		
 
 		cmd.add(omFileNameArg);
 		cmd.add(formatArg);
@@ -716,6 +776,7 @@ void ParseCmdLine(int argc, char** argv)
 		cmd.add(digEff);
 		cmd.add(falseCutProb);
 		cmd.add(smoothingThreshold);
+		cmd.add(errorModelArg);
 
 		cmd.parse(argc, argv);
 
@@ -729,6 +790,7 @@ void ParseCmdLine(int argc, char** argv)
 		params.cntThreads = cntThreadsArg.getValue();
 		params.topK = topK.getValue();
 		params.chromosome = chromosome.getValue();
+		params.errorModel = strings::lower(errorModelArg.getValue());
 		//params.mapOmMissedPenalty = omMissed.getValue();
 		//params.mapRmMissedPenalty = rmMissed.getValue();
 		params.maxDpWindowSize = dpwindowsize.getValue() + 1;
@@ -749,6 +811,13 @@ void ParseCmdLine(int argc, char** argv)
 		if (std::find(allowedFormats.begin(), allowedFormats.end(), params.omFormat) == allowedFormats.end())
 		{
 			ss << "The allowed experiment format values are " << EXPERIMENT_FORMAT_TYPES << "." << std::endl;
+			error_exit(ss.str());
+		}
+
+		vector<string> allowedErrorModels = strings::split(ERROR_MODELS, ",");
+		if (std::find(allowedErrorModels.begin(), allowedErrorModels.end(), params.errorModel) == allowedErrorModels.end())
+		{
+			ss << "The allowed error models are " << ERROR_MODELS << "." << std::endl;
 			error_exit(ss.str());
 		}
 	}

@@ -86,6 +86,7 @@ struct Params {
 	int		ixOmEnd;
 	int		cntThreads;
 	int		topK;
+	std::string	errorModel;
 	//int		mapOmMissedPenalty;
 	//int		mapRmMissedPenalty;
 	int		maxDpWindowSize;
