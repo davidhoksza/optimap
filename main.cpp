@@ -268,18 +268,33 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 
 		score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
 
-		// Missing cuts
-		vector<float> digestion_probs;
-		for (int ix = 1; ix < cntRefFrags; ix++)
+		// Missing cuts + aligned cut
+		float digestion_rate;
+		SCORE_TYPE auxP = 0;
+		for (int ix = 1; ix <= cntRefFrags; ix++)
 		{
-			int d1 = reference[ixRef + ix - 1].length;
-			int d2 = reference[ixRef + ix].length;
-			float dAvg = (d1 + d2) / 2.0;
-			digestion_probs.push_back(dAvg);
+			if (ixRef + ix == reference.size())
+			{
+				digestion_rate = 1;
+				
+			}
+			else
+			{
+				int d1 = reference[ixRef + ix - 1].length;
+				int d2 = reference[ixRef + ix].length;
+				float dAvg = (d1 + d2) / (2.0 * 1200);
+				digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;				
+			}
+			if (ix < cntRefFrags) auxP *= 1 - digestion_rate;
+			else auxP *= digestion_rate;				
 		}
+		score += stats::transform_prob(auxP);
 
 		//False cuts
-
+		//probability of seeing given number of false cuts
+		auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3);
+		//now this needs to be modified based on where the given cuts are
+		//TODO
 	}
 
 	return score;
@@ -348,7 +363,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						{
 							minCell.value = score;
 							minCell.sourceColumn = ixRef;
-							minCell.sourceRow = ixCol;
+							minCell.sourceRow = ixExp;
 						}
 					}
 				}
@@ -557,8 +572,8 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	clock_t begin_time = clock();
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
-	expMaps = parse_exp_map(params.omFileName);
-	refMaps = parse_ref_map(params.rmFileName);
+	expMaps = parse_exp_map(params.omFileName, 50);	
+	refMaps = parse_ref_map(params.rmFileName);	
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
@@ -754,7 +769,7 @@ void ParseCmdLine(int argc, char** argv)
 		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
 		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
 		
-		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment  of length R is moddeled as N(0, est-error-stddev*R*R)", true, 0.02, "float");
+		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment  of length R is moddeled as N(0, est-error-stddev*R*R)", false, 0.02, "float");
 		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
 		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
