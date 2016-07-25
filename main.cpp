@@ -1,4 +1,4 @@
-/*
+﻿/*
 * Copyright (C) 2016 by David Hoksza (david.hoksza@gmail.com)
 *
 * Released under the MIT license, see LICENSE.txt
@@ -296,6 +296,10 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1 * lambdaFactor) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3 * lambdaFactor);
 		//now this needs to be modified based on where the given cuts are
 		//TODO
+		//location of false cut is modeled as hybrid of three distributions
+		// U[0.1, 0.9], 0.1 ≤ lfp ≤ 0.9, w.p. 0.8852
+		// N(0.1, 0.044186), lfp < 0.1, w.p. 0.0574
+		// N(0.9, 0.044186), lfp > 0.9, w.p. 0.0574
 		score += stats::transform_prob(auxP);
 	}
 
