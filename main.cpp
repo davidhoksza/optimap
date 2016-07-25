@@ -270,7 +270,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 
 		// Missing cuts + aligned cut
 		float digestion_rate;
-		SCORE_TYPE auxP = 0;
+		SCORE_TYPE auxP = 1;
 		for (int ix = 1; ix <= cntRefFrags; ix++)
 		{
 			if (ixRef + ix == reference.size())
@@ -282,7 +282,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			{
 				int d1 = reference[ixRef + ix - 1].length;
 				int d2 = reference[ixRef + ix].length;
-				float dAvg = (d1 + d2) / (2.0 * 1200);
+				float dAvg = (d1 + d2) / (2.0 * 1200); //unit length is taken to be 1.2kb
 				digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;				
 			}
 			if (ix < cntRefFrags) auxP *= 1 - digestion_rate;
@@ -292,9 +292,11 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 
 		//False cuts
 		//probability of seeing given number of false cuts
-		auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3);
+		float lambdaFactor = expLength / 200000; //the model takes 200kb as a unit
+		auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1 * lambdaFactor) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3 * lambdaFactor);
 		//now this needs to be modified based on where the given cuts are
 		//TODO
+		score += stats::transform_prob(auxP);
 	}
 
 	return score;
