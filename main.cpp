@@ -245,28 +245,34 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		// Sizing error
 
 		float location, scale;
+		int laplace_type;
 		if (refLength < 2400)
 		{
 			location = 0.858181;
 			scale = 0.180196;
+			laplace_type = 0;
 		}
 		else if (refLength < 3600)
 		{
 			location = 0.980760;
 			scale = 0.071176;
+			laplace_type = 1;
 		}
 		else if (refLength < 4800)
 		{
 			location = 1.003354;
 			scale = 0.052800;
+			laplace_type = 2;
 		}
 		else 
 		{
 			location = 1.00482;
 			scale = 0.042428;
+			laplace_type = 3;
 		}
 
 		score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
+		//score += stats::transform_prob(stats::pdf_laplace(expLength / (float)refLength, laplace_type));
 
 		// Missing cuts + aligned cut
 		float digestion_rate;
@@ -292,8 +298,9 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 
 		//False cuts
 		//probability of seeing given number of false cuts
-		float lambdaFactor = expLength / 200000; //the model takes 200kb as a unit
-		auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1 * lambdaFactor) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3 * lambdaFactor);
+		//float lambdaFactor = expLength / 200000.0; //the model takes 200kb as a unit		
+		//auxP = 0.18 * stats::pdf_poisson_full(cntExpFrags - 1, 0) + 0.6 * stats::pdf_poisson_full(cntExpFrags - 1, 1 * lambdaFactor) + 0.22 * stats::pdf_poisson_full(cntExpFrags - 1, 3 * lambdaFactor);
+		auxP = 0.18 * stats::pdf_poisson_200kb(0, cntExpFrags - 1, expLength) + 0.6 * stats::pdf_poisson_200kb(1, cntExpFrags - 1, expLength) + 0.22 * stats::pdf_poisson_200kb(3, cntExpFrags - 1, expLength);
 		//now this needs to be modified based on where the given cuts are
 		//TODO
 		//location of false cut is modeled as hybrid of three distributions
@@ -309,7 +316,6 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector<RMRead> &reference, vector<SCORE_TYPE> &minScoresSoFar)
 {
 	//first, let's initiliaze the first column with submax values which ensures 
-	//that the resulting mapping will capture the whole fragemnt
 	//we don't use max values because that might cause overflow
 	//since we add to these values
 	for (int ixRow = 1; ixRow <= experiment.size(); matrix[ixRow++][0].value = SUB_MAX);
@@ -578,7 +584,7 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	clock_t begin_time = clock();
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
-	expMaps = parse_exp_map(params.omFileName, 50);	
+	expMaps = parse_exp_map(params.omFileName, 10);	
 	refMaps = parse_ref_map(params.rmFileName);	
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
@@ -860,7 +866,9 @@ int main(int argc, char** argv)
 	stats::init_stats(params.falseCutProb);
 	InitLogging();	
 	Parse(expMap, refMaps);
+	clock_t begin_time = clock();	
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
+	cout << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; 
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;
 

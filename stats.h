@@ -19,11 +19,21 @@ namespace stats {
 	const double E = std::exp(1.0);
 	const float inv_sqrt_2pi = 0.3989422804014327;
 	const int max__reasonable_stddev = 20;
+	const int LAPLACE_GRANULARITY = 10000;
+	const int LAPLACE_MAX = 3; //used in sizing error (ref/exp) -> 3x difference in exp vs ref is considered impossible (stddev is about 0.1)
+		
 
 
 	SCORE_TYPE log_tab[CNT_PROB_BINS + 1];
 	SCORE_TYPE gaussian_map[(2 * max__reasonable_stddev) * CNT_PROB_BINS + 1];
 	SCORE_TYPE poisson_map[MAX_OPT_MAP_WINDOW + 1][MAX_FRAGMENT_LENGTH + 1];
+	SCORE_TYPE poisson_map_0[MAX_OPT_MAP_WINDOW + 1][MAX_FRAGMENT_LENGTH + 1];
+	SCORE_TYPE poisson_map_1[MAX_OPT_MAP_WINDOW + 1][MAX_FRAGMENT_LENGTH + 1];
+	SCORE_TYPE poisson_map_3[MAX_OPT_MAP_WINDOW + 1][MAX_FRAGMENT_LENGTH + 1];
+	SCORE_TYPE laplace_map[4][2 * LAPLACE_MAX * LAPLACE_GRANULARITY + 1]; //laplace distribution for fragments < 2.4 kb (location = 0.858181;	scale = 0.180196)
+	//SCORE_TYPE laplace_map_lt_3600[2 * LAPLACE_MAX * LAPLACE_GRANULARITY + 1]; //laplace distribution for fragments < 3.6 kb (location = 0.980760;	scale = 0.071176)
+	//SCORE_TYPE laplace_map_lt_4800[2 * LAPLACE_MAX * LAPLACE_GRANULARITY + 1]; //laplace distribution for fragments < 4.8 kb (location = 1.003354;	scale = 0.052800)
+	//SCORE_TYPE laplace_map_ge_4800[2 * LAPLACE_MAX * LAPLACE_GRANULARITY + 1]; //laplace distribution for fragments >= 4.8 kb (location = 1.00482;	scale = 0.042428)
 
 	inline int factorial(int n)
 	{
@@ -118,6 +128,37 @@ namespace stats {
 		return poisson_map[n][lambda_times_false_cut_p];
 	}
 
+	inline SCORE_TYPE pdf_poisson_200kb(int lambda_200kb, int k, int frag_length)
+	{
+		if (frag_length > MAX_FRAGMENT_LENGTH) {
+			std::ostringstream ss;
+			ss << "Maximum fragment length currently set to " << MAX_FRAGMENT_LENGTH;
+			error_exit(ss.str());
+		}
+		switch (lambda_200kb)
+		{
+		case 0:
+			return poisson_map_0[k][frag_length];
+		case 1:
+			return poisson_map_1[k][frag_length];
+			
+		case 3:
+			return poisson_map_3[k][frag_length];
+		default:
+			std::ostringstream ss;
+			ss << "Unsupported value of lambda (" << lambda_200kb << ") for the Poisson distribution.";
+			error_exit(ss.str());
+			break;
+		}		
+	}
+
+	inline SCORE_TYPE pdf_laplace(float x, int type)
+	{
+		if (x < -LAPLACE_MAX || x > LAPLACE_MAX) return 0;
+		
+		return laplace_map[type][LAPLACE_MAX * LAPLACE_GRANULARITY + (int)(x * LAPLACE_GRANULARITY)];
+	}
+
 	inline float pdf_poisson_full(int n, float lambda)
 	{
 		return pow(lambda, n)*pow(E, -lambda) / factorial(n);
@@ -158,11 +199,60 @@ namespace stats {
 		}
 	}
 
+	void precompute_poisson_200kb(int lambda_200kb)
+	{	
+		for (int i = 0; i <= MAX_OPT_MAP_WINDOW; i++)
+		{
+			for (int j = 0; j <= MAX_FRAGMENT_LENGTH; j++)
+			{
+				float p = pdf_poisson_full(i, j * (lambda_200kb / 200000.0));
+				switch (lambda_200kb)
+				{
+				case 0:
+					poisson_map_0[i][j] = p;
+					break;
+				case 1:
+					poisson_map_1[i][j] = p;
+					break;
+				case 3:
+					poisson_map_3[i][j] = p;
+					break;
+				default:
+					std::ostringstream ss;
+					ss << "Unsupported value of lambda (" << lambda_200kb << ") for the Poisson distribution.";
+					error_exit(ss.str());
+					break;
+				}
+			}
+		}
+	}
+
+	void precompute_laplace()
+	{
+		float locations[] = { 0.858181, 0.980760, 1.003354, 1.00482 };
+		float scales[] = { 0.180196, 0.071176, 0.052800, 0.042428 };
+		float step = 1.0 / LAPLACE_GRANULARITY;
+
+		int ix_center = LAPLACE_MAX * LAPLACE_GRANULARITY;
+		for (int i = 0; i < sizeof(locations) / sizeof(*locations); i++)
+		{
+			for (int j = 0; j <= LAPLACE_MAX * LAPLACE_GRANULARITY; j++)
+			{
+				laplace_map[i][ix_center + j] = pdf_laplace_full(j * step, locations[i], scales[i]);
+				laplace_map[i][ix_center - j] = pdf_laplace_full(-j * step, locations[i], scales[i]);
+			}
+		}
+	}
+
 	void init_stats(float poisson_lambda_scale)
 	{
 		init_transform_prob();
 		precompute_gaussian();
 		precompute_poisson(poisson_lambda_scale);
+		precompute_poisson_200kb(0);
+		precompute_poisson_200kb(1);
+		precompute_poisson_200kb(3);
+		precompute_laplace();
 	}
 }
 
