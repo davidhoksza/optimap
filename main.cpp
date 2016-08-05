@@ -42,6 +42,8 @@ vector<int> candidateSectionLengths;
 vector<int> scoresCalculations;
 unsigned long int scoresComputed = 0;
 
+double avgRefLength;
+
 Params params;
 
 istream* open_map_file(string fileName)
@@ -69,17 +71,26 @@ RefMaps parse_ref_map(string fileName)
 	istream *ifs = open_map_file(fileName);
 
 	string line;
+	avgRefLength = 0;
+	int cnt = 0;
+	float auxLength;
 	for (string line; getline(*ifs, line);) {
+		cnt++;
 		vector<string> strs = strings::split(line, "\t");
 
 		RMRead auxRMRead;
 		auxRMRead.chromosome = strings::trim(strs[0]);
 		if (params.chromosome != "" && strings::upper(auxRMRead.chromosome) != strings::upper(params.chromosome)) continue;
 		auxRMRead.start = stof(strs[1]);
-		auxRMRead.length = stof(strs[3]) * 1000;
+		auxLength = stof(strs[3]);
+		if (auxLength < 0) auxLength = 0; //if length two restriction sites overlap
+		auxRMRead.length = auxLength * 1000;		
+		avgRefLength += auxLength;
 		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
 		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
 	}
+	avgRefLength /= cnt;	
+	avgRefLength *= 1000;
 
 	delete ifs;
 	return refMaps;
@@ -239,6 +250,51 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		// we can provide only the rowValue and use it as index to the array with precomputed values.
 		x = stats::pdf_poisson(cntExpFrags - 1, expLength);
 		score += stats::transform_prob(x);
+	}
+	else if (params.errorModel == "valuev-lr")
+	{
+		/********
+		
+		The score is computed as likelihood ratio as described in Valuev et. al. (DOI: 10.1089/cmb.2006.13.442).
+		Score of each aligned region consists of two likelihood ratios:
+			1. LR for matching the region of size x com prised of m of optical map fragments 
+				to the region of size y comprised of n reference map fragments isone representing sizing error
+			2. LR for the matching region comprised of m optical map fragments and the reference region 
+				comprised of n reference map fragments given the reference region of size y
+
+			S(q_i − q_g, r_j −r_h, i − g, j − h) = −log(LR(q_i − q_g; r_j −r_h,i − g, j − h)) − log(LR(i − g; r_j − r_h, j − h))
+
+		********/
+		float sigma = refLength > params.smallFragmentThreshold ? 11.47 : 13;  //standard deviation of error
+		float zeta = 0.005; //breakage rate
+		float dgst_prob = 1 - params.missRestrictionProb;
+		float lambda = avgRefLength; //mean of reference fragments (,which have exponential density)		
+		float tau = 1 / (zeta + dgst_prob/lambda);
+		float theta = 1/(1/sigma*sqrt(2/tau+1/(sigma*sigma))-1/(sigma*sigma)); //mean of fragment sizes of experimental maps (,which have exponential density)		
+		float f_M_m = 1.0 / params.maxDpWindowSize;
+
+		float lr_size, lr_cnt, f_H0, f_HA;
+		if (refLength > 4000)
+		{
+			//lr_size = (stats::sqrt_2pi * sqrt(refLength) * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
+			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma * refLength) - expLength / theta);
+			f_H0 = pow(expLength, cntExpFrags - 1)*exp(-expLength / theta) / (stats::factorial(cntExpFrags)*pow(theta, cntExpFrags));
+			cout << "f_H0:" << f_H0 << endl;
+			f_HA = exp(-((expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma*refLength)) / (stats::sqrt_2pi * sqrt(refLength)*sigma);
+			cout << "f_HA:" << f_HA << endl;
+
+			lr_size = f_H0 / f_HA;
+		}
+		else
+		{
+			lr_size = (stats::sqrt_2pi * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
+				exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma) - expLength / theta);
+		}
+
+		
+		lr_cnt = (exp(zeta*refLength)*stats::factorial(cntExpFrags - 1)*f_M_m) / (pow(1 - dgst_prob, cntRefFrags - 1) * pow(zeta*refLength, cntExpFrags - 1));
+
+		score = stats::transform_prob(lr_size) + stats::transform_prob(lr_cnt);
 	}
 	else if (params.errorModel == "li")
 	{

@@ -18,6 +18,7 @@ namespace stats {
 	const double PI = 3.141592653589793;
 	const double E = std::exp(1.0);
 	const float inv_sqrt_2pi = 0.3989422804014327;
+	const float sqrt_2pi = 2.50662827463;
 	const int max__reasonable_stddev = 20;
 	const int LAPLACE_GRANULARITY = 10000;
 	const int LAPLACE_MAX = 3; //used in sizing error (ref/exp) -> 3x difference in exp vs ref is considered impossible (stddev is about 0.1)
