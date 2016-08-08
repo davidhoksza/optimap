@@ -220,7 +220,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 	{
 
 		//float stddev = params.sizingErrorStddev * (exp_length > params.smallFragmentThreshold ? exp_length : params.smallFragmentThreshold);
-		float stddev = sqrt(float(refLength)) * (refLength > params.smallFragmentThreshold ? 5 : 6.4);
+		float stddev = sqrt(float(refLength)) * (refLength > params.smallFragmentThreshold ? 5 : 7);
 
 		float x;
 		if (stddev == 0)
@@ -265,36 +265,42 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			S(q_i − q_g, r_j −r_h, i − g, j − h) = −log(LR(q_i − q_g; r_j −r_h,i − g, j − h)) − log(LR(i − g; r_j − r_h, j − h))
 
 		********/
-		float sigma = refLength > params.smallFragmentThreshold ? 11.47 : 13;  //standard deviation of error
-		float zeta = 0.005; //breakage rate
+		float sigma = refLength > params.smallFragmentThreshold ? 5 : 7;  //standard deviation of error
+		//float sigma = refLength > params.smallFragmentThreshold ? sqrt(0.3) : sqrt(5);  //standard deviation of error
+		float zeta = 0.0000065; //breakage rate
 		float dgst_prob = 1 - params.missRestrictionProb;
 		float lambda = avgRefLength; //mean of reference fragments (,which have exponential density)		
 		float tau = 1 / (zeta + dgst_prob/lambda);
 		float theta = 1/(1/sigma*sqrt(2/tau+1/(sigma*sigma))-1/(sigma*sigma)); //mean of fragment sizes of experimental maps (,which have exponential density)		
 		float f_M_m = 1.0 / params.maxDpWindowSize;
 
-		float lr_size, lr_cnt, f_H0, f_HA;
+		float lr_size, lr_cnt, f_size_H0, f_size_HA, f_cnt_H0, f_cnt_HA;
+
+		f_size_H0 = pow((float)expLength, cntExpFrags - 1)*exp(-(float)expLength / theta) / (stats::factorial(cntExpFrags - 1)*pow(theta, cntExpFrags));
 		if (refLength > 4000)
 		{
 			//lr_size = (stats::sqrt_2pi * sqrt(refLength) * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
-			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma * refLength) - expLength / theta);
-			f_H0 = pow(expLength, cntExpFrags - 1)*exp(-expLength / theta) / (stats::factorial(cntExpFrags)*pow(theta, cntExpFrags));
-			cout << "f_H0:" << f_H0 << endl;
-			f_HA = exp(-((expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma*refLength)) / (stats::sqrt_2pi * sqrt(refLength)*sigma);
-			cout << "f_HA:" << f_HA << endl;
-
-			lr_size = f_H0 / f_HA;
+			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma * refLength) - expLength / theta);			
+			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma*refLength)) / (stats::sqrt_2pi * sqrt((float)refLength)*sigma);
 		}
 		else
 		{
-			lr_size = (stats::sqrt_2pi * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
-				exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma) - expLength / theta);
+			//lr_size = (stats::sqrt_2pi * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
+			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma) - expLength / theta);			
+			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma)) / (stats::sqrt_2pi *sigma);
 		}
-
 		
-		lr_cnt = (exp(zeta*refLength)*stats::factorial(cntExpFrags - 1)*f_M_m) / (pow(1 - dgst_prob, cntRefFrags - 1) * pow(zeta*refLength, cntExpFrags - 1));
+		//lr_cnt = (exp(zeta*refLength)*stats::factorial(cntExpFrags - 1)*f_M_m) / (pow(1 - dgst_prob, cntRefFrags - 1) * pow(zeta*refLength, cntExpFrags - 1));
+		f_cnt_H0 = f_M_m;
+		f_cnt_HA = (pow(1 - dgst_prob, cntRefFrags - 1) * exp(-zeta*refLength) * pow(zeta*refLength, cntExpFrags - 1)) / stats::factorial(cntExpFrags - 1);		
 
-		score = stats::transform_prob(lr_size) + stats::transform_prob(lr_cnt);
+		//score = stats::transform_prob(lr_size) + stats::transform_prob(lr_cnt);
+		if (isinf(f_size_HA) || isinf(f_size_H0) || isinf(f_cnt_HA) || isinf(f_cnt_H0)) score = stats::transform_prob(0);
+		else score = stats::transform_prob(f_size_HA) - stats::transform_prob(f_size_H0) + stats::transform_prob(f_cnt_HA) - stats::transform_prob(f_cnt_H0);
+
+		//cout << score << endl;
+
+		//exit(0);
 	}
 	else if (params.errorModel == "li")
 	{

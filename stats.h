@@ -167,7 +167,9 @@ namespace stats {
 
 	SCORE_TYPE transform_prob(SCORE_TYPE p)
 	{
-		SCORE_TYPE a = log_tab[(int)(p*CNT_PROB_BINS)];
+		int ix = (int)(p*CNT_PROB_BINS);
+		//if (ix > CNT_PROB_BINS + 1)
+		SCORE_TYPE a = log_tab[ix];
 		return a;
 	}
 
