@@ -951,9 +951,9 @@ int main(int argc, char** argv)
 	stats::init_stats(params.falseCutProb);
 	InitLogging();	
 	Parse(expMap, refMaps);
-	clock_t begin_time = clock();	
+	//clock_t begin_time = clock();	
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
-	cout << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; 
+	//cout << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; 
 	SerializeMappings(omMatches, expMap, refMaps);
 	delete[] omMatches;
 
