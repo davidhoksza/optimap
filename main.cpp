@@ -669,7 +669,7 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	clock_t begin_time = clock();
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
-	expMaps = parse_exp_map(params.omFileName, 10);	
+	expMaps = parse_exp_map(params.omFileName);	
 	refMaps = parse_ref_map(params.rmFileName);	
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
