@@ -265,38 +265,61 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			S(q_i − q_g, r_j −r_h, i − g, j − h) = −log(LR(q_i − q_g; r_j −r_h,i − g, j − h)) − log(LR(i − g; r_j − r_h, j − h))
 
 		********/
-		float sigma = refLength > params.smallFragmentThreshold ? 5 : 7;  //standard deviation of error
+		//float sigma = refLength > params.smallFragmentThreshold ? 5 : 7;  //standard deviation of error
+		//float sigma2 = refLength > params.smallFragmentThreshold ? 25 : 49;  //standard deviation of error
+		//float twosigma2 = refLength > params.smallFragmentThreshold ? 50 : 98;  //standard deviation of error
+		//float sqrt_2pi_sigma = stats::sqrt_2pi *sigma;		
+		static float sigma_short = 5;
+		static float sigma_long = 7;
+		static float twosigma2_short = 2 * sigma_short *sigma_short;
+		static float twosigma2_long = 2 * sigma_long *sigma_long;
+		static float sqrt_2pi_sigma_short = stats::sqrt_2pi *sigma_short;
+		static float sqrt_2pi_sigma_long = stats::sqrt_2pi *sigma_long;
 		//float sigma = refLength > params.smallFragmentThreshold ? sqrt(0.3) : sqrt(5);  //standard deviation of error
-		float zeta = 0.0000065; //breakage rate
-		float dgst_prob = 1 - params.missRestrictionProb;
-		float lambda = avgRefLength; //mean of reference fragments (,which have exponential density)		
-		float tau = 1 / (zeta + dgst_prob/lambda);
-		float theta = 1/(1/sigma*sqrt(2/tau+1/(sigma*sigma))-1/(sigma*sigma)); //mean of fragment sizes of experimental maps (,which have exponential density)		
-		float f_M_m = 1.0 / params.maxDpWindowSize;
+		static float zeta = 0.0000065; //breakage rate
+		static float dgst_prob = 1 - params.missRestrictionProb;
+		static float lambda = avgRefLength; //mean of reference fragments (,which have exponential density)		
+		static float tau = 1 / (zeta + dgst_prob/lambda);
+		static float theta_short = 1 / (1 / sigma_short *sqrt(2 / tau + 1 / (sigma_short *sigma_short)) - 1 / (sigma_short*sigma_short)); //mean of fragment sizes of experimental maps (,which have exponential density)		
+		static float theta_long = 1 / (1 / sigma_long *sqrt(2 / tau + 1 / (sigma_long *sigma_long)) - 1 / (sigma_long*sigma_long)); //mean of fragment sizes of experimental maps (,which have exponential density)		
+		static float f_M_m = 1.0 / params.maxDpWindowSize;
 
-		float lr_size, lr_cnt, f_size_H0, f_size_HA, f_cnt_H0, f_cnt_HA;
+		//float lr_size, lr_cnt;
+		float f_size_H0, f_size_HA, f_cnt_H0, f_cnt_HA;
 
-		f_size_H0 = pow((float)expLength, cntExpFrags - 1)*exp(-(float)expLength / theta) / (stats::factorial(cntExpFrags - 1)*pow(theta, cntExpFrags));
+		
 		if (refLength > 4000)
 		{
-			//lr_size = (stats::sqrt_2pi * sqrt(refLength) * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
-			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma * refLength) - expLength / theta);			
-			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma*refLength)) / (stats::sqrt_2pi * sqrt((float)refLength)*sigma);
+			/*lr_size = (stats::sqrt_2pi * sqrt(refLength) * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
+				exp(((expLength - refLength) * (expLength - refLength)) / (twosigma2 * refLength) - expLength / theta);*/
+			f_size_H0 = pow((float)expLength, cntExpFrags - 1)*exp(-(float)expLength / theta_long) / (stats::factorial(cntExpFrags - 1)*pow(theta_long, cntExpFrags));
+			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (twosigma2_long*refLength)) / (sqrt_2pi_sigma_long * sqrt((float)refLength));
 		}
 		else
 		{
-			//lr_size = (stats::sqrt_2pi * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
-			//	exp(((expLength - refLength) * (expLength - refLength)) / (2 * sigma * sigma) - expLength / theta);			
-			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (2 * sigma*sigma)) / (stats::sqrt_2pi *sigma);
+			/*lr_size = (stats::sqrt_2pi * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
+				exp(((expLength - refLength) * (expLength - refLength)) / (twosigma2)-expLength / theta);*/
+			f_size_H0 = pow((float)expLength, cntExpFrags - 1)*exp(-(float)expLength / theta_short) / (stats::factorial(cntExpFrags - 1)*pow(theta_short, cntExpFrags));
+			f_size_HA = exp(-(((float)expLength - refLength)*(expLength - refLength)) / (twosigma2_short)) / (sqrt_2pi_sigma_short);
 		}
+
+		//cout << f_size_H0 << ";" << f_size_HA << endl;
 		
 		//lr_cnt = (exp(zeta*refLength)*stats::factorial(cntExpFrags - 1)*f_M_m) / (pow(1 - dgst_prob, cntRefFrags - 1) * pow(zeta*refLength, cntExpFrags - 1));
 		f_cnt_H0 = f_M_m;
-		f_cnt_HA = (pow(1 - dgst_prob, cntRefFrags - 1) * exp(-zeta*refLength) * pow(zeta*refLength, cntExpFrags - 1)) / stats::factorial(cntExpFrags - 1);		
+		f_cnt_HA = (pow(1 - dgst_prob, cntRefFrags - 1) * exp(-zeta*refLength) * pow(zeta*refLength, cntExpFrags - 1)) / stats::factorial(cntExpFrags - 1);	
+	
 
-		//score = stats::transform_prob(lr_size) + stats::transform_prob(lr_cnt);
-		if (isinf(f_size_HA) || isinf(f_size_H0) || isinf(f_cnt_HA) || isinf(f_cnt_H0)) score = stats::transform_prob(0);
-		else score = stats::transform_prob(f_size_HA) - stats::transform_prob(f_size_H0) + stats::transform_prob(f_cnt_HA) - stats::transform_prob(f_cnt_H0);
+		/*if (isinf(lr_size) || isinf(lr_cnt)) score = stats::transform_prob(0);
+		else score = -log(lr_size) -log(lr_cnt);*/
+		if (isinf(f_size_HA) || f_size_HA == 0 || isinf(f_size_H0) || f_size_H0 == 0 || isinf(f_cnt_HA) || f_cnt_HA == 0 || isinf(f_cnt_H0) || f_cnt_H0 == 0) score = stats::transform_prob(0);
+		else
+		{
+			//score = stats::transform_prob(f_size_HA) - stats::transform_prob(f_size_H0) + stats::transform_prob(f_cnt_HA) - stats::transform_prob(f_cnt_H0);
+			score = -log(f_size_HA / f_size_H0) - log(f_cnt_HA / f_cnt_H0);
+			//score = - (log(f_size_HA) - log(f_size_H0)) - (log(f_cnt_HA) -log(f_cnt_H0));
+			//cout << score << ";" << f_size_HA / f_size_H0 << endl;
+		}
 
 		//cout << score << endl;
 
@@ -306,35 +329,35 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 	{
 		// Sizing error
 
-		float location, scale;
+		//float location, scale;
 		int laplace_type;
 		if (refLength < 2400)
 		{
-			location = 0.858181;
-			scale = 0.180196;
+			//location = 0.858181;
+			//scale = 0.180196;
 			laplace_type = 0;
 		}
 		else if (refLength < 3600)
 		{
-			location = 0.980760;
-			scale = 0.071176;
+			//location = 0.980760;
+			//scale = 0.071176;
 			laplace_type = 1;
 		}
 		else if (refLength < 4800)
 		{
-			location = 1.003354;
-			scale = 0.052800;
+			//location = 1.003354;
+			//scale = 0.052800;
 			laplace_type = 2;
 		}
 		else 
 		{
-			location = 1.00482;
-			scale = 0.042428;
+			//location = 1.00482;
+			//scale = 0.042428;
 			laplace_type = 3;
 		}
 
-		score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
-		//score += stats::transform_prob(stats::pdf_laplace(expLength / (float)refLength, laplace_type));
+		//score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
+		score += stats::transform_prob(stats::pdf_laplace(expLength / (float)refLength, laplace_type));
 
 		// Missing cuts + aligned cut
 		float digestion_rate;
@@ -551,7 +574,7 @@ void map_segment(int from, int to, vector<ExpMap> &expMap, RefMaps &refMaps, Map
 {
 	for (int ixRM = from; ixRM <= to; ++ixRM)
 	{
-		int threshold = INDEX_NEIGHBORHOOD_THRESHOLD;
+		//int threshold = INDEX_NEIGHBORHOOD_THRESHOLD;
 
 		Mappings mappings;
 		vector<SCORE_TYPE> minScoresSoFar;

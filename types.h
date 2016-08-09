@@ -59,15 +59,15 @@ typedef std::vector<OmRmMatch> OmRmPath;
 
 typedef float SCORE_TYPE;
 
-struct Mapping {		
-	OmRmPath	alignment;
-	std::vector<SCORE_TYPE> scores;
+struct Mapping {			
 	SCORE_TYPE	score;		//score from the dp
+	std::vector<SCORE_TYPE> scores;	
+	OmRmPath	alignment;
 	float		quality;	//phred-scaled probablity (-10log_10(P(wrong mapping)) that the mapping can be mapped to wrong position in the reference
 	std::string chromosome; 
 	bool		reversed = false;
 
-	Mapping(float _score, std::vector<SCORE_TYPE> _scores, OmRmPath _alignment) : alignment(_alignment), score(_score), scores(_scores) {};
+	Mapping(float _score, std::vector<SCORE_TYPE> _scores, OmRmPath _alignment) : score(_score), scores(_scores), alignment(_alignment) {};
 	void ComputeQuality() {
 		quality = score;
 	}
