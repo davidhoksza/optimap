@@ -357,6 +357,9 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		}
 
 		//score += stats::transform_prob(stats::pdf_laplace_full(expLength/(float)refLength, location, scale));
+		//float aux = stats::pdf_laplace_full(expLength / (float)refLength, location, scale);
+		//float aux = stats::pdf_laplace(expLength / (float)refLength, laplace_type);
+		//cout << aux << ";";
 		score += stats::transform_prob(stats::pdf_laplace(expLength / (float)refLength, laplace_type));
 
 		// Missing cuts + aligned cut
@@ -373,8 +376,13 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			{
 				int d1 = reference[ixRef + ix - 1].length;
 				int d2 = reference[ixRef + ix].length;
-				float dAvg = (d1 + d2) / (2.0 * 1200); //unit length is taken to be 1.2kb
-				digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;				
+				float dAvg = (d1 + d2) / 2.0; //unit length is taken to be 1.2kb
+				if (dAvg > 18000) digestion_rate = 0.9;
+				else {
+					dAvg /= 1200;
+					digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;					
+				}
+				
 			}
 			if (ix < cntRefFrags) auxP *= 1 - digestion_rate;
 			else auxP *= digestion_rate;				

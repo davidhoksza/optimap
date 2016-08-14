@@ -8,9 +8,11 @@
 #define STATS_H
 
 #include <cmath>
+#include <assert.h>
 
 #include "constants.h"
 #include "common.h"
+
 
 
 namespace stats {
@@ -22,6 +24,7 @@ namespace stats {
 	const int max__reasonable_stddev = 20;
 	const int LAPLACE_GRANULARITY = 10000;
 	const int LAPLACE_MAX = 3; //used in sizing error (ref/exp) -> 3x difference in exp vs ref is considered impossible (stddev is about 0.1)
+	const float STDDEV_STEP = 0.5; //"pdf"(x) = cdf(x+stddev*step) - cdf(x-stddev*step)
 		
 
 
@@ -74,48 +77,25 @@ namespace stats {
 		else return gaussian_map[(int)(x * CNT_PROB_BINS) + CNT_PROB_BINS * max__reasonable_stddev]; //+ CNT_PROB_BINS * max__reasonable_stddev -> index starts from 0
 	}
 
+	inline float cdf_laplace(float x, float location, float scale)
+	{
+
+		if (x < location) return 0.5 * exp((x - location) / scale);
+		else return 1 - 0.5*exp(-(x - location) / scale);
+	}
+
 	inline float pdf_laplace_full(float x, float location, float scale)
 	{
-		//****************************************************************************80
-		//
-		//  Purpose:
-		//
-		//    LAPLACE_PDF evaluates the Laplace PDF.
-		//
-		//  Discussion:
-		//
-		//    PDF(A,B;X) = exp ( - abs ( X - A ) / B ) / ( 2 * B )
-		//
-		//  Discussion:
-		//
-		//    The Laplace PDF is also known as the Double Exponential PDF.
-		//
-		//  Licensing:
-		//
-		//    This code is distributed under the GNU LGPL license.
-		//
-		//  Modified:
-		//
-		//    09 February 1999
-		//
-		//  Author:
-		//
-		//    John Burkardt
-		//
-		//  Parameters:
-		//
-		//    Input, double X, the argument of the PDF.
-		//
-		//    Input, double A, B, the parameters of the PDF.
-		//    0.0 < B.
-		//
-		//    Output, double LAPLACE_PDF, the value of the PDF.
-		//
-		double pdf;
+		
+		/*double pdf;
 
 		pdf = exp(-fabs(x - location) / scale) / (2.0 * scale);
 
-		return pdf;
+		return pdf;*/
+
+		float r = cdf_laplace(x + scale*STDDEV_STEP, location, scale) - cdf_laplace(x - scale*STDDEV_STEP, location, scale);
+		//cout << r << endl;
+		return r;
 
 	}
 
@@ -167,6 +147,7 @@ namespace stats {
 
 	SCORE_TYPE transform_prob(SCORE_TYPE p)
 	{
+		assert(p <= 1 && p >= 0);
 		int ix = (int)(p*CNT_PROB_BINS);
 		//if (ix > CNT_PROB_BINS + 1)
 		SCORE_TYPE a = log_tab[ix];
@@ -242,7 +223,7 @@ namespace stats {
 			for (int j = 0; j <= LAPLACE_MAX * LAPLACE_GRANULARITY; j++)
 			{
 				laplace_map[i][ix_center + j] = pdf_laplace_full(j * step, locations[i], scales[i]);
-				laplace_map[i][ix_center - j] = pdf_laplace_full(-j * step, locations[i], scales[i]);
+				laplace_map[i][ix_center - j] = pdf_laplace_full(- j * step, locations[i], scales[i]);
 			}
 		}
 	}
