@@ -474,7 +474,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 				}
 			}
 			matrix[ixRow][ixCol] = minCell;
-			if (isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
+			if (params.errorModel != "valuev-lr" && isLastRow /*&& ixCol >= ixColResultFrom*/ && minCell.value < minScoresSoFar[0])
 			{
 				minScoresSoFar.erase(minScoresSoFar.begin());
 				minScoresSoFar.push_back(minCell.value);
