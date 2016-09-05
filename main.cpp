@@ -44,6 +44,10 @@ unsigned long int scoresComputed = 0;
 
 double avgRefLength;
 
+//double *scoresCache;
+//int		stepLength = 5;
+//int		maxSeqLength = 200000;
+
 Params params;
 
 istream* open_map_file(string fileName)
@@ -461,7 +465,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						SCORE_TYPE score = matrix[ixRow - ixWindowRow][ixRef].value;
 						if (score >= minScoresSoFar[0]) continue;
 						//we use ixCol-1 and not ixCol, since in score_segment we will index experiment and refernece maps, which are not +1 indexed as the DP matrix
-						score += score_segment(rowValue, colValue, ixWindowRow, ixWindowCol, ixCol-1, ixRow-1, experiment, reference);
+						score += score_segment(rowValue, colValue, ixWindowRow, ixWindowCol, ixRow - 1, ixCol - 1, experiment, reference);
 						if (score >= minScoresSoFar[0]) continue;
 						
 						if (score < minCell.value)
@@ -950,6 +954,30 @@ void ParseCmdLine(int argc, char** argv)
 	}
 }
 
+//void PrecomputeScores(vector<ExpMap> &expMap, RefMaps &refMaps)
+//{
+//	if (params.errorModel == "valuev-lr")
+//	{
+//		for (int ixRefCnt; ixRefCnt <= params.maxDpWindowSize; ixRefCnt++)
+//		{
+//			for (int ixExpCnt; ixExpCnt <= params.maxDpWindowSize; ixExpCnt++)
+//			{
+//				for (int ixRefLen = 0; ixRefLen <= (maxSeqLength * params.maxDpWindowSize) / stepLength; ixRefLen++)
+//				{
+//					for (int ixExpLen = 0; ixExpLen <= (maxSeqLength * params.maxDpWindowSize) / stepLength; ixExpLen++)
+//					{
+//						SCORE_TYPE score = score_segment(ixExpLen, ixRefLen, ixExpCnt, ixRefCnt, )
+//
+//					}
+//
+//				}
+//			}
+//		}
+//
+//	}
+//
+//}
+
 int main(int argc, char** argv)
 {
 	vector<ExpMap> expMap;
@@ -959,6 +987,7 @@ int main(int argc, char** argv)
 	stats::init_stats(params.falseCutProb);
 	InitLogging();	
 	Parse(expMap, refMaps);
+	//PrecomputeScores(expMap, refMaps);
 	//clock_t begin_time = clock();	
 	Mappings *omMatches = AlignOpticalMaps(expMap, refMaps);
 	//cout << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; 
