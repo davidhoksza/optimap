@@ -88,12 +88,12 @@ RefMaps parse_ref_map(string fileName)
 		auxRMRead.start = stof(strs[1]);
 		auxLength = stof(strs[3]);
 		if (auxLength < 0) auxLength = 0; //if length two restriction sites overlap
-		auxRMRead.length = auxLength * 1000;		
+		auxRMRead.length = auxLength * 1000;
 		avgRefLength += auxLength;
 		if (refMaps.count(auxRMRead.chromosome) == 0) refMaps[auxRMRead.chromosome] = vector<RMRead>();
 		refMaps[auxRMRead.chromosome].push_back(auxRMRead);
 	}
-	avgRefLength /= cnt;	
+	avgRefLength /= cnt;
 	avgRefLength *= 1000;
 
 	delete ifs;
@@ -125,7 +125,7 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 			}
 
 			if (line.find("KpnI") != string::npos)
-			{			
+			{
 				f.Clear();
 				f.name = fragName;
 
@@ -173,7 +173,7 @@ vector<ExpMap> parse_exp_map(string fileName, int topN = numeric_limits<int>::ma
 			{
 				f.Clear();
 				ss << sLine[1] << "_" << sLine[2];
-				f.name = ss.str(); ss.str(string());				
+				f.name = ss.str(); ss.str(string());
 			}
 			if (sLine[0] == "1")
 			{
@@ -258,15 +258,15 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 	else if (params.errorModel == "valuev-lr")
 	{
 		/********
-		
+
 		The score is computed as likelihood ratio as described in Valuev et. al. (DOI: 10.1089/cmb.2006.13.442).
 		Score of each aligned region consists of two likelihood ratios:
-			1. LR for matching the region of size x com prised of m of optical map fragments 
-				to the region of size y comprised of n reference map fragments isone representing sizing error
-			2. LR for the matching region comprised of m optical map fragments and the reference region 
-				comprised of n reference map fragments given the reference region of size y
+		1. LR for matching the region of size x com prised of m of optical map fragments
+		to the region of size y comprised of n reference map fragments isone representing sizing error
+		2. LR for the matching region comprised of m optical map fragments and the reference region
+		comprised of n reference map fragments given the reference region of size y
 
-			S(q_i − q_g, r_j −r_h, i − g, j − h) = −log(LR(q_i − q_g; r_j −r_h,i − g, j − h)) − log(LR(i − g; r_j − r_h, j − h))
+		S(q_i − q_g, r_j −r_h, i − g, j − h) = −log(LR(q_i − q_g; r_j −r_h,i − g, j − h)) − log(LR(i − g; r_j − r_h, j − h))
 
 		********/
 		//float sigma = refLength > params.smallFragmentThreshold ? 5 : 7;  //standard deviation of error
@@ -283,7 +283,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		static float zeta = 0.0000065; //breakage rate
 		static float dgst_prob = 1 - params.missRestrictionProb;
 		static float lambda = avgRefLength; //mean of reference fragments (,which have exponential density)		
-		static float tau = 1 / (zeta + dgst_prob/lambda);
+		static float tau = 1 / (zeta + dgst_prob / lambda);
 		static float theta_short = 1 / (1 / sigma_short *sqrt(2 / tau + 1 / (sigma_short *sigma_short)) - 1 / (sigma_short*sigma_short)); //mean of fragment sizes of experimental maps (,which have exponential density)		
 		static float theta_long = 1 / (1 / sigma_long *sqrt(2 / tau + 1 / (sigma_long *sigma_long)) - 1 / (sigma_long*sigma_long)); //mean of fragment sizes of experimental maps (,which have exponential density)		
 		static float f_M_m = 1.0 / params.maxDpWindowSize;
@@ -291,7 +291,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		//float lr_size, lr_cnt;
 		float f_size_H0, f_size_HA, f_cnt_H0, f_cnt_HA;
 
-		
+
 		if (refLength > 4000)
 		{
 			/*lr_size = (stats::sqrt_2pi * sqrt(refLength) * sigma * pow(expLength, cntExpFrags - 1)) / (stats::factorial(cntExpFrags - 1) * pow(theta, cntExpFrags)) *
@@ -308,11 +308,11 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 		}
 
 		//cout << f_size_H0 << ";" << f_size_HA << endl;
-		
+
 		//lr_cnt = (exp(zeta*refLength)*stats::factorial(cntExpFrags - 1)*f_M_m) / (pow(1 - dgst_prob, cntRefFrags - 1) * pow(zeta*refLength, cntExpFrags - 1));
 		f_cnt_H0 = f_M_m;
-		f_cnt_HA = (pow(1 - dgst_prob, cntRefFrags - 1) * exp(-zeta*refLength) * pow(zeta*refLength, cntExpFrags - 1)) / stats::factorial(cntExpFrags - 1);	
-	
+		f_cnt_HA = (pow(1 - dgst_prob, cntRefFrags - 1) * exp(-zeta*refLength) * pow(zeta*refLength, cntExpFrags - 1)) / stats::factorial(cntExpFrags - 1);
+
 
 		/*if (isinf(lr_size) || isinf(lr_cnt)) score = stats::transform_prob(0);
 		else score = -log(lr_size) -log(lr_cnt);*/
@@ -353,7 +353,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			//scale = 0.052800;
 			laplace_type = 2;
 		}
-		else 
+		else
 		{
 			//location = 1.00482;
 			//scale = 0.042428;
@@ -374,7 +374,7 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 			if (ixRef + ix == reference.size())
 			{
 				digestion_rate = 1;
-				
+
 			}
 			else
 			{
@@ -384,12 +384,12 @@ SCORE_TYPE score_segment(int expLength, int refLength, int cntExpFrags, int cntR
 				if (dAvg > 18000) digestion_rate = 0.9;
 				else {
 					dAvg /= 1200;
-					digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;					
+					digestion_rate = 0.0003089 * dAvg * dAvg * dAvg - 0.01069 * dAvg * dAvg + 0.1253 * dAvg + 0.3693;
 				}
-				
+
 			}
 			if (ix < cntRefFrags) auxP *= 1 - digestion_rate;
-			else auxP *= digestion_rate;				
+			else auxP *= digestion_rate;
 		}
 		score += stats::transform_prob(auxP);
 
@@ -430,7 +430,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 			minCell.value = SUB_MAX;
 			minCell.sourceColumn = ixCol - 1; //This value is used when no good match is found
 			minCell.sourceRow = ixRow - 1; //This value is used when no good match is found
-			
+
 			//First and last fragments are scored 0 AND experiment fragment is shorter 
 			//(otherwise we would omit a clear cut, i.e. the alignment would be on wrong place due to this first/last fragment)
 			if ((ixRow == 1 || isLastRow) && experiment[ixRow - 1] - reference[ixCol - 1].length < 0)
@@ -449,7 +449,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 				{
 					int ixExp = ixRow - ixWindowRow;
 					if (ixRow - ixWindowRow < 0) break; //should I touch position out of the array
-					
+
 					//ends of fragments can be aligned with zero score since
 					//the molecules forming fragments were not created with a restriction enzyme
 					rowValue += experiment[ixExp];
@@ -467,7 +467,7 @@ void dp_fill_matrix(DpMatrixCell ** matrix, vector<int> &experiment, std::vector
 						//we use ixCol-1 and not ixCol, since in score_segment we will index experiment and refernece maps, which are not +1 indexed as the DP matrix
 						score += score_segment(rowValue, colValue, ixWindowRow, ixWindowCol, ixRow - 1, ixCol - 1, experiment, reference);
 						if (score >= minScoresSoFar[0]) continue;
-						
+
 						if (score < minCell.value)
 						{
 							minCell.value = score;
@@ -681,8 +681,8 @@ void Parse(vector<ExpMap> &expMaps, RefMaps &refMaps)
 	clock_t begin_time = clock();
 	//vector<ExpMap> expMap = parse_exp_map("../CASTEiJ_Alldata.maps", 1000);
 	//vector<ExpMap> expMap = parse_exp_map("../ref.map.split", 100);
-	expMaps = parse_exp_map(params.omFileName);	
-	refMaps = parse_ref_map(params.rmFileName);	
+	expMaps = parse_exp_map(params.omFileName);
+	refMaps = parse_ref_map(params.rmFileName);
 	SmoothExpFragments(expMaps);
 	SmoothRefFragments(refMaps);
 	ss << "ref. chromosomes: " << refMaps.size() << "\n"; logger.Log(Logger::LOGFILE, ss);
@@ -723,7 +723,7 @@ Mappings* AlignOpticalMaps(vector<ExpMap> &expMap, RefMaps &refMaps)
 	}
 	for (int i = 0; i < threads.size(); i++) threads[i].join();
 
-	ss << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::LOGFILE, ss);
+	ss << endl << "Time(s): " << float(clock() - begin_time) / CLOCKS_PER_SEC << endl; logger.Log(Logger::STDOUT, ss);
 	ss << "======= ALIGNING - END =======" << endl; logger.Log(Logger::LOGFILE, ss);
 
 	return omMappings;
@@ -736,7 +736,7 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 	ss << "#QX11 qaulity_score1;quality_score2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#QX12 signal_to_noise_ratio1;signal_to_noise_ratio2;... (available in case of Bionano experimental maps)" << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#LEN_DIFF total_refmap_length - total_expmap_length" << endl; logger.Log(Logger::RESFILE, ss);
-	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);	
+	ss << "#ALN aligned_ref_frags_len-aligned_exp_frags_len,#aligned_ref_frags:#aligned_exp_frags,aligned_ref_frags_len ..." << endl; logger.Log(Logger::RESFILE, ss);
 	ss << "#ALN_DETAIL aligned_ref_frags1:aligned_exp_frags1 aligned_ref_frags2:aligned_exp_frags2 ... (frags separated by comma)" << endl; logger.Log(Logger::RESFILE, ss);
 
 	int cntIncorrectlyMapped = 0;;
@@ -744,7 +744,7 @@ void SerializeMappings(Mappings *omMappings, vector<ExpMap> &expMap, RefMaps &re
 	{
 		if (ixOM < params.ixOmStart || (ixOM > params.ixOmEnd && params.ixOmEnd != -1)) continue;
 		ss << "EXP_OPTMAP_IX: " << ixOM << endl; logger.Log(Logger::RESFILE, ss);
-		ss << "NAME: " << expMap[ixOM].name << endl; logger.Log(Logger::RESFILE, ss);	
+		ss << "NAME: " << expMap[ixOM].name << endl; logger.Log(Logger::RESFILE, ss);
 		for (int ix = 0; ix < 2; ix++)
 		{
 			vector<float> q = (ix == 0 ? expMap[ixOM].qx11 : expMap[ixOM].qx12);
@@ -874,15 +874,15 @@ void ParseCmdLine(int argc, char** argv)
 
 		ss.str(std::string());  ss << "Error model. Currently supported models: [" << ERROR_MODELS << "]";
 		TCLAP::ValueArg<std::string> errorModelArg("", "errmodel", ss.str(), false, "valuev", "string"); ss.str(std::string());
-		
+
 		//TCLAP::ValueArg<int> omMissed("", "omissed", "Penalty for missing restriction site in an experimental optical map", false, 2000, "int");
 		//TCLAP::ValueArg<int> rmMissed("", "rmmissed", "Penalty for missing restriction site in an refernce map", false, 2000, "int");
-		
+
 		TCLAP::ValueArg<float> sizingErrorStddev("", "read-error-stddev", "Fragment read error stddev. Size estimation error for a fragment  of length R is moddeled as N(0, est-error-stddev*R*R)", false, 0.02, "float");
 		TCLAP::ValueArg<int> smallFragmentThreshold("", "small-fragment-threshold", "Sizing error stddev. Stddev for small fragments is constant ~ N(mean, est-error-stddev)", false, 4000, "int");
 		TCLAP::ValueArg<float> digEff("", "cut-eff", "Cut (digestion) efficiency. Probabily of missing N restriction sites is (1 - cut-eff)^N", false, 0.8, "float");
 		TCLAP::ValueArg<float> falseCutProb("", "false-cut-p", "Probability of false cut per base. Probability of N false cuts is modelled by Poisson distribution with mean = false-cut-p*segment_length", false, 0.00000001, "float");
-		
+
 
 		cmd.add(omFileNameArg);
 		cmd.add(formatArg);
@@ -966,26 +966,22 @@ void ParseCmdLine(int argc, char** argv)
 //				{
 //					for (int ixExpLen = 0; ixExpLen <= (maxSeqLength * params.maxDpWindowSize) / stepLength; ixExpLen++)
 //					{
-//						SCORE_TYPE score = score_segment(ixExpLen, ixRefLen, ixExpCnt, ixRefCnt, )
-//
+//						SCORE_TYPE score = score_segment(ixExpLen, ixRefLen, ixExpCnt, ixRefCnt, -1, -1, expMap[0].reads, refMaps.begin()->second);
 //					}
-//
 //				}
 //			}
 //		}
-//
 //	}
-//
 //}
 
 int main(int argc, char** argv)
 {
 	vector<ExpMap> expMap;
-	RefMaps refMaps;	
+	RefMaps refMaps;
 
 	ParseCmdLine(argc, argv);
 	stats::init_stats(params.falseCutProb);
-	InitLogging();	
+	InitLogging();
 	Parse(expMap, refMaps);
 	//PrecomputeScores(expMap, refMaps);
 	//clock_t begin_time = clock();	
